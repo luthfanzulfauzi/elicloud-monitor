@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(docker-compose --version)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:8000/api/v1/dashboard/summary)",
+      "Bash(curl -s http://localhost:8000/api/v1/status)",
+      "Bash(curl -s http://localhost:8000/api/v1/hosts)",
+      "Bash(curl -s http://localhost:8000/api/v1/users)",
+      "Bash(curl -s http://localhost:8000/api/v1/vms)",
+      "Bash(curl -s http://localhost/api/v1/dashboard/summary)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/)",
+      "Bash(curl -sv -X POST http://localhost:8000/api/v1/users -H 'Content-Type: application/json' -d '{\"name\":\"Elit Admin\",\"email\":\"elit@elitery.com\",\"role\":\"Admin\",\"status\":\"Active\",\"password\":\"changeme\"}')",
+      "Bash(python3 -c \"import sys,json; [print\\(u['name'],u['role'],u['status']\\) for u in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s http://localhost:8000/api/v1/storage)",
+      "Bash(curl -s http://localhost:8000/api/v1/projects)",
+      "Bash(curl -s http://localhost:8000/api/v1/vms/trend)",
+      "Bash(curl -s http://localhost:8000/api/v1/compute/trend)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://103.17.178.73:8080/zstack/v1/hosts\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://103.17.178.73:8080/v1/hosts\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://103.17.178.73:8080/zstack/hosts\")",
+      "Bash(curl -s \"http://103.17.178.73:8080/zstack/v1/hosts\")",
+      "Bash(curl -s \"http://103.17.178.73:8080/zstack/v1/vm-instances\")",
+      "Bash(curl *)",
+      "Bash(chmod +x /Users/luthfan/Documents/dev/elicloudmonitor/api_test/test_zstack_accesskey.sh)",
+      "Bash(./test_zstack_accesskey.sh)",
+      "Bash(python3 -c \"import sys,json; paths=json.load\\(sys.stdin\\)['paths']; [print\\(k\\) for k in sorted\\(paths.keys\\(\\)\\)]\")",
+      "Bash(pip install *)",
+      "Bash(python3 -m pip install \"python-jose[cryptography]\" \"passlib[bcrypt]\" -q)",
+      "Bash(pip3 install *)",
+      "Bash(python3 -c \"import uvicorn; print\\(uvicorn.__file__\\)\")"
+    ]
+  }
+}
