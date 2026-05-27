@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
-import { fetchVMs, type VM, type VolumeInfo } from '@/lib/api'
+import { fetchVMs, fetchResourceGroups, type VM, type VolumeInfo } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -18,11 +18,13 @@ function ColumnFilterHeader({
   value,
   options,
   onChange,
+  maxWidth,
 }: {
   label: string
   value: string
   options: string[]
   onChange: (v: string) => void
+  maxWidth?: string
 }) {
   const active = value !== 'all'
   return (
@@ -33,6 +35,7 @@ function ColumnFilterHeader({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        style={maxWidth ? { maxWidth } : undefined}
         className={cn(
           'cursor-pointer appearance-none rounded border px-1.5 py-0.5 text-[10px] outline-none transition-colors',
           active
@@ -139,10 +142,12 @@ export default function VMs() {
   const [hostFilter, setHostFilter] = useState('all')
   const [osFilter, setOsFilter] = useState('all')
   const [ownerFilter, setOwnerFilter] = useState('all')
+  const [rgFilter, setRgFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
   const { data: vms, isLoading } = useQuery({ queryKey: ['vms'], queryFn: fetchVMs })
+  const { data: resourceGroups = [] } = useQuery({ queryKey: ['resource-groups'], queryFn: fetchResourceGroups })
 
   const hostOptions = useMemo(
     () => [...new Set((vms ?? []).map((v) => v.host).filter(Boolean) as string[])].sort(),
@@ -155,6 +160,22 @@ export default function VMs() {
   const ownerOptions = useMemo(
     () => [...new Set((vms ?? []).map((v) => v.project_name).filter(Boolean) as string[])].sort(),
     [vms],
+  )
+
+  // Map project name → first resource group name that contains it
+  const projectToRg = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const rg of resourceGroups) {
+      for (const projName of rg.projects) {
+        if (!map.has(projName)) map.set(projName, rg.name)
+      }
+    }
+    return map
+  }, [resourceGroups])
+
+  const rgOptions = useMemo(
+    () => ['(None)', ...resourceGroups.map((rg) => rg.name).sort()],
+    [resourceGroups],
   )
 
   const filtered = useMemo(
@@ -178,9 +199,14 @@ export default function VMs() {
         if (hostFilter !== 'all' && vm.host !== hostFilter) return false
         if (osFilter !== 'all' && vm.platform !== osFilter) return false
         if (ownerFilter !== 'all' && vm.project_name !== ownerFilter) return false
+        if (rgFilter !== 'all') {
+          const vmRg = vm.project_name ? projectToRg.get(vm.project_name) ?? null : null
+          if (rgFilter === '(None)' && vmRg !== null) return false
+          if (rgFilter !== '(None)' && vmRg !== rgFilter) return false
+        }
         return true
       }),
-    [vms, nameSearch, ipSearch, eipSearch, rootDiskSearch, dataDiskSearch, stateFilter, hostFilter, osFilter, ownerFilter],
+    [vms, nameSearch, ipSearch, eipSearch, rootDiskSearch, dataDiskSearch, stateFilter, hostFilter, osFilter, ownerFilter, rgFilter, projectToRg],
   )
 
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)))
@@ -205,10 +231,11 @@ export default function VMs() {
             const today = new Date().toISOString().split('T')[0]
             downloadCSV(
               `vms_${today}.csv`,
-              ['Name', 'State', 'Owner', 'Host', 'OS', 'Private IP', 'EIP', 'vCPU', 'vRAM (GB)', 'Storage (GB)', 'Created At', 'Root Disk Storage', 'Root Disk (GB)', 'Data Disks'],
+              ['Name', 'State', 'Resource Group', 'Owner', 'Host', 'OS', 'Private IP', 'EIP', 'vCPU', 'vRAM (GB)', 'Storage (GB)', 'Created At', 'Root Disk Storage', 'Root Disk (GB)', 'Data Disks'],
               filtered.map((vm) => [
                 vm.name,
                 vm.state,
+                (vm.project_name ? projectToRg.get(vm.project_name) : undefined) ?? '',
                 vm.project_name ?? '',
                 vm.host ?? '',
                 vm.platform ?? '',
@@ -256,7 +283,10 @@ export default function VMs() {
                         <ColumnFilterHeader label="OS" value={osFilter} options={osOptions} onChange={handleFilterChange(setOsFilter)} />
                       </th>
                       <th className="px-4 py-3 text-left">
-                        <ColumnFilterHeader label="Owner" value={ownerFilter} options={ownerOptions} onChange={handleFilterChange(setOwnerFilter)} />
+                        <ColumnFilterHeader label="Owner" value={ownerFilter} options={ownerOptions} onChange={handleFilterChange(setOwnerFilter)} maxWidth="140px" />
+                      </th>
+                      <th className="px-4 py-3 text-left">
+                        <ColumnFilterHeader label="Res. Group" value={rgFilter} options={rgOptions} onChange={handleFilterChange(setRgFilter)} maxWidth="120px" />
                       </th>
                       <th className="px-4 py-3 text-left">
                         <ColumnSearchHeader label="Private IP" value={ipSearch} placeholder="10.x.x.x…" minWidth="110px" onChange={(v) => { setIpSearch(v); resetPage() }} />
@@ -279,7 +309,7 @@ export default function VMs() {
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {paginated.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="px-4 py-12 text-center text-xs text-slate-400">
+                        <td colSpan={14} className="px-4 py-12 text-center text-xs text-slate-400">
                           No virtual machines match the current filters.
                         </td>
                       </tr>
@@ -291,6 +321,11 @@ export default function VMs() {
                           <td className="px-4 py-3 text-slate-600">{vm.host ?? <span className="text-slate-300">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600">{vm.platform ?? <span className="text-slate-300">—</span>}</td>
                           <td className="px-4 py-3 text-slate-600">{vm.project_name ?? <span className="text-slate-300">—</span>}</td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {vm.project_name && projectToRg.get(vm.project_name)
+                              ? <span className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">{projectToRg.get(vm.project_name)}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
                           <td className="px-4 py-3 font-mono text-slate-600">{vm.private_ip ?? <span className="text-slate-300">—</span>}</td>
                           <td className="px-4 py-3 font-mono text-slate-600">{vm.eip ?? <span className="text-slate-300">—</span>}</td>
                           <td className="px-4 py-3 text-slate-700">{vm.vcpu}</td>
