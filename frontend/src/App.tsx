@@ -9,6 +9,7 @@ import VMs from '@/pages/VMs'
 import Projects from '@/pages/Projects'
 import ResourceGroups from '@/pages/ResourceGroups'
 import Reports from '@/pages/Reports'
+import DiskHealth from '@/pages/DiskHealth'
 import Users from '@/pages/Users'
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="resource-groups" element={<ResourceGroups />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="disk-health" element={<DiskHealth />} />
             <Route path="users" element={<Users />} />
           </Route>
         </Route>

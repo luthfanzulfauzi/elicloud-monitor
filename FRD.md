@@ -210,16 +210,63 @@ EliCloud Monitor consists of three layers:
 
 ---
 
+### FR-12: Disk Health Monitoring
+
+Data source: smartctl output files collected from storage nodes via SCP — not from ZStack API.
+
+#### FR-12A: Storage Node Registry
+
+| ID | Requirement |
+|----|-------------|
+| FR-12A.1 | System shall maintain a registry of storage nodes (hostname, SSH host/IP, SSH port, SSH user, SSH key path) stored in the app's own database |
+| FR-12A.2 | System shall allow adding, editing, and deleting storage node entries (CRUD in app DB only) |
+| FR-12A.3 | System shall support enabling or disabling individual storage nodes |
+
+#### FR-12B: smartctl Data Collection
+
+| ID | Requirement |
+|----|-------------|
+| FR-12B.1 | System shall connect to each enabled storage node via SCP using the configured SSH credentials |
+| FR-12B.2 | System shall download all files matching `{HOSTNAME}_{NVME_DISK}_smart.txt` from the configured remote directory on each storage node |
+| FR-12B.3 | System shall parse each downloaded file to extract NVMe SMART metrics |
+| FR-12B.4 | System shall support manual refresh (on-demand SCP collection + re-parse) triggered from the UI |
+| FR-12B.5 | System shall record the timestamp of the last successful collection per storage node |
+| FR-12B.6 | System shall handle SCP/SSH errors gracefully and log them without crashing the collection run |
+
+#### FR-12C: Parsed SMART Metrics
+
+| ID | Requirement |
+|----|-------------|
+| FR-12C.1 | System shall extract the following fields from each smartctl output file: Hostname, NVMe Device, Model Number, Total NVM Capacity (Bytes), Data Units Written (for TBW calculation), Percentage Used (Endurance Used), Available Spare, SMART overall-health assessment (PASSED / FAILED) |
+| FR-12C.2 | System shall calculate TBW (Terabytes Written) from Data Units Written: `TBW = data_units_written × 512000 / 1e12` |
+| FR-12C.3 | System shall calculate Write Endurance (Life Remaining) as `100 - Endurance Used %` |
+| FR-12C.4 | System shall generate a human-readable Summary and Notes per disk based on health status and metric thresholds |
+| FR-12C.5 | System shall store the latest parsed record per (hostname, nvme_device) pair — overwrite on each refresh |
+
+#### FR-12D: Disk Health Dashboard Page
+
+| ID | Requirement |
+|----|-------------|
+| FR-12D.1 | System shall provide a "Disk Health" page displaying a unified table of all NVMe disks across all storage nodes |
+| FR-12D.2 | Table columns: Hostname, NVMe Device, Model Number, Capacity, TBW, Endurance Used, Write Endurance (Life Remaining), Available Spare, Disk Health, Summary, Notes |
+| FR-12D.3 | Disk Health column shall be color-coded: PASSED=green, FAILED=red |
+| FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health status |
+| FR-12D.5 | System shall display the timestamp of the last data collection |
+| FR-12D.6 | System shall provide a "Refresh" button to trigger an on-demand SCP collection run |
+| FR-12D.7 | System shall allow exporting the disk health table to CSV |
+
+---
+
 ## 4. Data Flow
 
 ```
-ZStack API
-    │
-    ▼  (AccessKey auth, GET only)
-Data Collector (cron/scheduler)
-    │
-    ▼  (upsert by zstack_uuid)
-Database (PostgreSQL)
+ZStack API                         Storage Nodes (SCP)
+    │                                      │
+    ▼  (AccessKey auth, GET only)          ▼  (SSH/SCP, read-only file download)
+Data Collector (cron/scheduler)    smartctl Collector (on-demand / scheduled)
+    │                                      │
+    ▼  (upsert by zstack_uuid)             ▼  (parse + upsert by hostname+device)
+Database (PostgreSQL) ─────────────────────┘
     │
     ▼
 Backend REST API

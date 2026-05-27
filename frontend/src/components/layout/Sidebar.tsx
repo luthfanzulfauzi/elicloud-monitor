@@ -7,6 +7,7 @@ import {
   FolderOpen,
   Layers,
   FileBarChart,
+  HardDrive,
   Users,
   Zap,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen, end: false },
   { to: '/resource-groups', label: 'Resource Groups', icon: Layers, end: false },
   { to: '/reports', label: 'Reports', icon: FileBarChart, end: false },
+  { to: '/disk-health', label: 'Disk Health', icon: HardDrive, end: false },
 ]
 
 const systemItems = [

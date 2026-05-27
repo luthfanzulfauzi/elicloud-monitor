@@ -112,9 +112,58 @@ Refer to `FRS.md` for the full directory structure and API specification.
 | Frontend — all 8 pages + charts + export | ✅ Done | Industrial Precision UI; client-side CSV/PDF |
 | Docker Compose + Dockerfiles | ✅ Done | postgres + backend + frontend services |
 | User authentication (login, JWT, protected routes, role gating) | ✅ Done | Phase 2.5 — Login page, ProtectedRoute, JWT Bearer, `/auth/login` + `/auth/me`, seed admin, `useCurrentUser` + `usePermission` hooks, sidebar + page gating |
+| VM → Project association sync | ❌ Pending | Phase 2.7 — Use ZQL `query accountresourceref` to populate `vm.project_id`; see implementation plan below |
+| Disk Health Monitoring (smartctl SCP collector + DiskHealth page) | ❌ Pending | Phase 2.6 — StorageNode registry, `smartctl_service.py`, `/disk-health` + `/storage-nodes` routers, `DiskHealth.tsx` page |
 | Alembic migrations | ❌ Pending | `alembic/versions/` is empty — DB uses `create_all()` on startup |
 | `/reports` backend router (CSV/PDF export) | ❌ Pending | Phase 3 |
 | Deployment docs | ❌ Pending | Phase 4 |
+
+---
+
+## VM → Project Association — Implementation Plan (Phase 2.7)
+
+### Background
+
+ZStack's admin REST API does NOT expose VM ownership through `VmInstanceInventory`. All attempts to query VMs by account/project via standard REST (`q=accountUuid=...`, `q=__projectUuid__=...`) return `503: field not found`. The `GET /v1/accounts/resources` endpoint only contains shared resources (roles, images, offerings) — never `VmInstanceVO`.
+
+The working approach uses **ZQL** (`GET /v1/zql?zql=query accountresourceref ...`), which accesses ZStack's internal `AccountResourceRefVO` table directly. This table contains `ownerAccountUuid` per resource including all VMs.
+
+### How the join works
+
+```
+VM.zstack_uuid
+  ↕  accountresourceref.resourceUuid  (where resourceType='VmInstanceVO', isShared=false)
+accountresourceref.ownerAccountUuid
+  ↕  project.linkedAccountUuid
+Project
+```
+
+**Confirmed results:** 1,181 / 1,217 VMs (97%) match an IAM2 project. The remaining 36 are owned by the admin account (no project).
+
+### Files to change
+
+| File | Change |
+|------|--------|
+| `backend/app/services/zstack_client.py` | Add `fetch_vm_owner_refs() → dict[str, str]`: ZQL-paginated fetch of all `accountresourceref` entries, filter `VmInstanceVO` + `isShared=false` client-side, return `{vm_zstack_uuid: owner_account_uuid}` |
+| `backend/app/services/sync_service.py` | After projects are fetched, build `{linkedAccountUuid: project_app_id}` map; call `fetch_vm_owner_refs()`; use the two maps to resolve `vm.project_id` during VM upsert; remove the always-`None` fallback |
+| `backend/app/routers/projects.py` | Already loads `project.vms` — will return real counts once `vm.project_id` is populated |
+
+### ZQL call details
+
+```
+GET /v1/zql?zql=query+accountresourceref+limit+1000+offset+0
+```
+
+- Total refs: ~14,920 across all resource types
+- Filter client-side: `resourceType == 'VmInstanceVO' and not isShared`
+- Paginate until `len(page) < limit`
+- Auth: same AccessKey HMAC-SHA1 as all other ZStack calls
+
+### Edge cases
+
+- VMs owned by admin account (`36c27e8ff05c4780bf6d2fa65700f22e`) → `project_id = None`
+- New VMs created after sync → populated on next scheduled sync (5-min interval)
+- `fetch_vm_owner_refs()` failure → log warning, skip project_id population (do not fail entire sync)
 
 ---
 
@@ -159,10 +208,10 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 The application includes a full User Management + Authentication system. This is **app-internal only** — users here control access to the EliCloud Monitor UI, not ZStack resources.
 
 - **Roles**: Admin, Operator, Viewer
-- **Per-module permission matrix**: each user has a `PermissionMap` with `view` and `manage` flags per module (Dashboard, Hosts, VMs, Storage, Projects, Resource Groups, Reports, User Management)
+- **Per-module permission matrix**: each user has a `PermissionMap` with `view` and `manage` flags per module (Dashboard, Hosts, VMs, Storage, Projects, Resource Groups, Reports, Disk Health, User Management)
 - **Role defaults**:
   - Admin: all `view=true, manage=true` — locked, non-editable
-  - Operator: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=true` for Hosts, VMs, Storage, Projects, Resource Groups; `manage=false` for Dashboard, Reports
+  - Operator: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=true` for Hosts, VMs, Storage, Projects, Resource Groups, Disk Health; `manage=false` for Dashboard, Reports
   - Viewer: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=false` everywhere
 - **`User Management` module is Admin-only** — Operators and Viewers cannot see or access the Users page
 - **Seed admin**: `admin@elitery.com` / `admin123` created on startup if DB has no users
@@ -172,7 +221,7 @@ The application includes a full User Management + Authentication system. This is
 - **Permission editing**: per-user permission matrix dialog; checking Manage auto-checks View; unchecking View auto-unchecks Manage
 - **Route guard**: `Users.tsx` redirects non-Admin users to `/` via `useCurrentUser` hook
 - **Sidebar gating**: System section hidden when `usePermission('User Management').view === false`
-- Types defined in `src/lib/api.ts`: `AppUser`, `UserRole`, `UserStatus`, `AppModule`, `PermissionMap`
+- Types defined in `src/lib/api.ts`: `AppUser`, `UserRole`, `UserStatus`, `AppModule` (9 modules including `'Disk Health'`), `PermissionMap`
 - Hooks: `src/hooks/useCurrentUser.ts`, `src/hooks/usePermission.ts`
 
 ---

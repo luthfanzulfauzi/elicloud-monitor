@@ -54,6 +54,7 @@ Operations teams managing ZStack private cloud environments need a centralized v
 - Custom resource grouping (group multiple projects into named groups)
 - Report generation and export
 - Dashboard visualization
+- **NVMe disk health monitoring**: collect smartctl output from storage nodes via SCP, parse and visualize SMART data per disk
 
 ### Out of Scope
 - **Writing/modifying ZStack resources — absolutely prohibited; ZStack API is query-only**
@@ -119,6 +120,15 @@ Full VM listing with filterable columns:
 - Scheduled report generation (daily/weekly/monthly)
 - Report covers: hosts, storage, VMs, projects, resource groups
 
+### F-11: Disk Health Monitoring
+Monitor NVMe disk health on storage servers by collecting and parsing smartctl output:
+- EliCloud Monitor VM downloads `{HOSTNAME}_{NVME_DISK}_smart.txt` files from all storage nodes via SCP
+- Parse NVMe SMART data: model, capacity, TBW, endurance used %, life remaining %, available spare %, health status
+- Display a unified table across all storage nodes with per-disk health indicators
+- Color-coded Disk Health column (PASSED / FAILED)
+- Manual refresh trigger to re-pull and re-parse latest smartctl output
+- Storage node registry (hostname, SSH config) managed within this app's own database
+
 ### F-10: User Management & Authentication
 - Login page as the application entry point — all pages require a valid session
 - Email + password authentication; passwords stored as bcrypt hashes
@@ -174,5 +184,6 @@ Full VM listing with filterable columns:
 | Phase 1 | Backend API + ZStack data collector | ⚠️ Mostly Complete — missing: `/reports` router, Alembic migrations, auth endpoints |
 | Phase 2 | Frontend dashboard — all pages including Users, Reports with provisioning trends | ✅ Complete |
 | Phase 2.5 | User authentication — Login page, JWT auth, protected routes, role/permission gating | ✅ Complete |
+| Phase 2.6 | Disk Health Monitoring — SCP collection, smartctl parser, StorageNode registry, DiskHealth page | 🔲 Pending |
 | Phase 3 | Reporting engine + export (backend-driven CSV/PDF) | 🔲 Pending |
 | Phase 4 | Docker packaging + deployment guide | ⚠️ Partially Complete — Compose + Dockerfiles done; Alembic init + deployment docs missing |

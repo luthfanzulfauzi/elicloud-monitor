@@ -12,6 +12,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import urllib.parse
 from email.utils import formatdate
 
 import httpx
@@ -172,6 +173,45 @@ async def fetch_quotas_for_account(account_uuid: str) -> dict[str, int]:
         log.debug("fetch_quotas_for_account %s failed: %s", account_uuid, exc)
         return {}
     return {q["name"]: q["value"] for q in results if "name" in q and "value" in q}
+
+
+async def fetch_vm_owner_refs() -> dict[str, str]:
+    """Return {vm_zstack_uuid: owner_account_uuid} for all VMs via ZQL accountresourceref.
+
+    ZStack REST API does not expose account ownership on VmInstanceInventory.
+    ZQL's accountresourceref table (AccountResourceRefVO) does contain ownerAccountUuid
+    per resource. We fetch all refs, filter client-side for VmInstanceVO + isShared=false,
+    and return the mapping used to populate vm.project_id during sync.
+    """
+    base_url = settings.ZSTACK_ENDPOINT.rstrip("/")
+    uri = "/v1/zql"
+    url = f"{base_url}/zstack{uri}"
+    result: dict[str, str] = {}
+    offset = 0
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        while True:
+            zql = f"query accountresourceref limit {PAGE_SIZE} offset {offset}"
+            encoded = urllib.parse.quote(zql)
+            auth, date_str = _make_auth("GET", uri)
+            headers = {"Authorization": auth, "Date": date_str, "Content-Type": "application/json"}
+            try:
+                resp = await client.get(f"{url}?zql={encoded}", headers=headers)
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                log.error("ZQL accountresourceref failed: %s", exc)
+                raise
+
+            inventories = resp.json().get("results", [{}])[0].get("inventories", [])
+            for ref in inventories:
+                if ref.get("resourceType") == "VmInstanceVO" and not ref.get("isShared"):
+                    result[ref["resourceUuid"]] = ref["ownerAccountUuid"]
+
+            offset += PAGE_SIZE
+            if len(inventories) < PAGE_SIZE:
+                break
+
+    return result
 
 
 async def fetch_user_tags() -> list[dict]:

@@ -28,11 +28,14 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://elicloud:elicloud@postgres:5432/elicloudmonitor
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:80,http://frontend"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:80,http://frontend,https://${APP_DOMAIN}"
     ports:
       - "8000:8000"
     volumes:
       - report_output:/app/reports
+      - ./smartctl:/app/smartctl
+      # ssh_keys/ should contain the private key files referenced by StorageNode.ssh_key_path
+      - ./ssh_keys:/app/ssh_keys:ro
 
   frontend:
     build:
@@ -43,6 +46,17 @@ services:
       - backend
     ports:
       - "80:80"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    env_file:
+      - .env
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
 
 volumes:
   postgres_data:

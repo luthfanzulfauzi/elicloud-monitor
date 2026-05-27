@@ -61,11 +61,12 @@ export type AppModule =
   | 'Projects'
   | 'Resource Groups'
   | 'Reports'
+  | 'Disk Health'
   | 'User Management'
 export type PermissionMap = Record<AppModule, { view: boolean; manage: boolean }>
 
 export const APP_MODULES: AppModule[] = [
-  'Dashboard', 'Hosts', 'VMs', 'Storage', 'Projects', 'Resource Groups', 'Reports', 'User Management',
+  'Dashboard', 'Hosts', 'VMs', 'Storage', 'Projects', 'Resource Groups', 'Reports', 'Disk Health', 'User Management',
 ]
 
 const ADMIN_ONLY: AppModule[] = ['User Management']
@@ -136,6 +137,13 @@ export interface StoragePool {
   ceph_pools?: CephPool[] | null
 }
 
+export interface VolumeInfo {
+  name: string
+  type: string
+  size_gb: number
+  storage_name: string | null
+}
+
 export interface VM {
   id: string
   name: string
@@ -148,6 +156,9 @@ export interface VM {
   vram_gb: number
   storage_gb: number
   created_at: string
+  project_name: string | null
+  root_volume: VolumeInfo | null
+  data_volumes: VolumeInfo[]
 }
 
 export interface ProjectQuota {
@@ -173,8 +184,13 @@ export interface Project {
 export interface ResourceGroup {
   id: string
   name: string
-  description: string
+  description: string | null
   projects: string[]
+  project_ids: string[]
+  vm_count: number
+  vcpu_total: number
+  vram_gb: number
+  storage_gb: number
 }
 
 export interface SyncInfo {
@@ -223,6 +239,67 @@ export interface StorageCapacityPoint {
   date: string
   capacity_total_tb: number
   capacity_used_tb: number
+}
+
+export type DiskSummary = 'Good' | 'Warning' | 'Not good'
+
+export interface DiskHealthRecord {
+  id: string
+  hostname: string
+  nvme_device: string
+  model_number: string | null
+  capacity_tb: number | null
+  tbw: number | null
+  endurance_used_pct: number | null
+  life_remaining_pct: number | null
+  available_spare_pct: number | null
+  disk_health: string
+  summary: DiskSummary | null
+  notes: string | null
+  collected_at: string
+}
+
+export interface CollectResult {
+  nodes_collected: number
+  nodes_failed: number
+  files_parsed: number
+  parse_errors: number
+  message: string
+}
+
+export interface StorageNode {
+  id: string
+  hostname: string
+  ssh_host: string
+  ssh_port: number
+  ssh_user: string
+  ssh_key_path: string
+  remote_dir: string
+  enabled: boolean
+  last_collected_at: string | null
+  last_collect_status: string | null
+  last_collect_error: string | null
+  created_at: string
+}
+
+export interface StorageNodeCreate {
+  hostname: string
+  ssh_host: string
+  ssh_port: number
+  ssh_user: string
+  ssh_key_path: string
+  remote_dir: string
+  enabled: boolean
+}
+
+export interface StorageNodeUpdate {
+  hostname?: string
+  ssh_host?: string
+  ssh_port?: number
+  ssh_user?: string
+  ssh_key_path?: string
+  remote_dir?: string
+  enabled?: boolean
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
@@ -304,22 +381,26 @@ export const MOCK_PROJECTS: Project[] = [
   },
 ]
 
+function _mockVol(name: string, type: string, size_gb: number, storage_name: string | null): VolumeInfo {
+  return { name, type, size_gb, storage_name }
+}
+
 export const MOCK_VMS: VM[] = [
-  { id: 'vm1', name: 'web-01', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.10', eip: '203.0.113.10', vcpu: 2, vram_gb: 4, storage_gb: 80, created_at: '2025-01-15' },
-  { id: 'vm2', name: 'web-02', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.11', eip: null, vcpu: 2, vram_gb: 4, storage_gb: 80, created_at: '2025-01-20' },
-  { id: 'vm3', name: 'db-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.20', eip: null, vcpu: 8, vram_gb: 32, storage_gb: 500, created_at: '2025-02-01' },
-  { id: 'vm4', name: 'app-01', state: 'Stopped', host: 'host-02', platform: 'Windows', private_ip: '192.168.1.30', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-02-15' },
-  { id: 'vm5', name: 'cache-01', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.40', eip: null, vcpu: 2, vram_gb: 8, storage_gb: 50, created_at: '2025-03-01' },
-  { id: 'vm6', name: 'worker-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.50', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-03-10' },
-  { id: 'vm7', name: 'worker-02', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.60', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-03-15' },
-  { id: 'vm8', name: 'monitor-01', state: 'Running', host: 'host-02', platform: 'Windows', private_ip: '192.168.1.70', eip: '203.0.113.20', vcpu: 2, vram_gb: 4, storage_gb: 50, created_at: '2025-04-01' },
-  { id: 'vm9', name: 'dev-01', state: 'Stopped', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.80', eip: null, vcpu: 2, vram_gb: 4, storage_gb: 50, created_at: '2025-04-10' },
-  { id: 'vm10', name: 'staging-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.90', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-04-20' },
+  { id: 'vm1', name: 'web-01', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.10', eip: '203.0.113.10', vcpu: 2, vram_gb: 4, storage_gb: 80, created_at: '2025-01-15', project_name: 'Project Alpha', root_volume: _mockVol('ROOT-web-01', 'Root', 50, 'SSD-Pool'), data_volumes: [_mockVol('DATA-web-01', 'Data', 30, 'SSD-Pool')] },
+  { id: 'vm2', name: 'web-02', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.11', eip: null, vcpu: 2, vram_gb: 4, storage_gb: 80, created_at: '2025-01-20', project_name: 'Project Alpha', root_volume: _mockVol('ROOT-web-02', 'Root', 50, 'SSD-Pool'), data_volumes: [_mockVol('DATA-web-02', 'Data', 30, 'SSD-Pool')] },
+  { id: 'vm3', name: 'db-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.20', eip: null, vcpu: 8, vram_gb: 32, storage_gb: 500, created_at: '2025-02-01', project_name: 'Project Beta', root_volume: _mockVol('ROOT-db-01', 'Root', 100, 'SSD-Pool'), data_volumes: [_mockVol('DATA-db-01-a', 'Data', 200, 'Ceph-HDD'), _mockVol('DATA-db-01-b', 'Data', 200, 'Ceph-HDD')] },
+  { id: 'vm4', name: 'app-01', state: 'Stopped', host: 'host-02', platform: 'Windows', private_ip: '192.168.1.30', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-02-15', project_name: 'Project Beta', root_volume: _mockVol('ROOT-app-01', 'Root', 80, 'SSD-Pool'), data_volumes: [_mockVol('DATA-app-01', 'Data', 20, 'SSD-Pool')] },
+  { id: 'vm5', name: 'cache-01', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.40', eip: null, vcpu: 2, vram_gb: 8, storage_gb: 50, created_at: '2025-03-01', project_name: 'Project Gamma', root_volume: _mockVol('ROOT-cache-01', 'Root', 50, 'SSD-Pool'), data_volumes: [] },
+  { id: 'vm6', name: 'worker-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.50', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-03-10', project_name: 'Project Gamma', root_volume: _mockVol('ROOT-worker-01', 'Root', 50, 'SSD-Pool'), data_volumes: [_mockVol('DATA-worker-01', 'Data', 50, 'Ceph-HDD')] },
+  { id: 'vm7', name: 'worker-02', state: 'Running', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.60', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-03-15', project_name: null, root_volume: _mockVol('ROOT-worker-02', 'Root', 50, 'SSD-Pool'), data_volumes: [_mockVol('DATA-worker-02', 'Data', 50, 'Ceph-HDD')] },
+  { id: 'vm8', name: 'monitor-01', state: 'Running', host: 'host-02', platform: 'Windows', private_ip: '192.168.1.70', eip: '203.0.113.20', vcpu: 2, vram_gb: 4, storage_gb: 50, created_at: '2025-04-01', project_name: 'Project Alpha', root_volume: _mockVol('ROOT-monitor-01', 'Root', 50, 'SSD-Pool'), data_volumes: [] },
+  { id: 'vm9', name: 'dev-01', state: 'Stopped', host: 'host-01', platform: 'Linux', private_ip: '192.168.1.80', eip: null, vcpu: 2, vram_gb: 4, storage_gb: 50, created_at: '2025-04-10', project_name: null, root_volume: _mockVol('ROOT-dev-01', 'Root', 50, 'SSD-Pool'), data_volumes: [] },
+  { id: 'vm10', name: 'staging-01', state: 'Running', host: 'host-02', platform: 'Linux', private_ip: '192.168.1.90', eip: null, vcpu: 4, vram_gb: 8, storage_gb: 100, created_at: '2025-04-20', project_name: 'Project Beta', root_volume: _mockVol('ROOT-staging-01', 'Root', 50, 'SSD-Pool'), data_volumes: [_mockVol('DATA-staging-01-a', 'Data', 25, 'Ceph-HDD'), _mockVol('DATA-staging-01-b', 'Data', 25, 'Ceph-HDD')] },
 ]
 
 export const MOCK_RESOURCE_GROUPS: ResourceGroup[] = [
-  { id: 'rg1', name: 'Production', description: 'Production workloads', projects: ['project-alpha', 'project-beta'] },
-  { id: 'rg2', name: 'Development', description: 'Development and staging environments', projects: ['project-gamma'] },
+  { id: 'rg1', name: 'Production', description: 'Production workloads', projects: ['Project Alpha', 'Project Beta'], project_ids: [], vm_count: 7, vcpu_total: 26, vram_gb: 60, storage_gb: 960 },
+  { id: 'rg2', name: 'Development', description: 'Development and staging environments', projects: ['Project Gamma'], project_ids: [], vm_count: 3, vcpu_total: 10, vram_gb: 24, storage_gb: 250 },
 ]
 
 export const MOCK_USERS: AppUser[] = [
@@ -410,6 +491,26 @@ export function getMockStorageCapacityTrend(startDate?: string, endDate?: string
   return points
 }
 
+export const MOCK_STORAGE_NODES: StorageNode[] = [
+  { id: 'sn1', hostname: 'zs-storage01', ssh_host: '10.0.0.1', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:33:00Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn2', hostname: 'zs-storage02', ssh_host: '10.0.0.2', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:33:52Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn3', hostname: 'zs-storage03', ssh_host: '10.0.0.3', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:34:10Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn4', hostname: 'zs-storage04', ssh_host: '10.0.0.4', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn5', hostname: 'zs-storage05', ssh_host: '10.0.0.5', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn6', hostname: 'zs-storage06', ssh_host: '10.0.0.6', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: false, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+]
+
+export const MOCK_DISK_HEALTH: DiskHealthRecord[] = [
+  { id: 'd01', hostname: 'zs-storage01', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 528.0, endurance_used_pct: 4, life_remaining_pct: 96, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z' },
+  { id: 'd02', hostname: 'zs-storage01', nvme_device: 'nvme3n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 612.0, endurance_used_pct: 6, life_remaining_pct: 94, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z' },
+  { id: 'd03', hostname: 'zs-storage02', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 731.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 78, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 78%', collected_at: '2026-05-25T12:33:52Z' },
+  { id: 'd04', hostname: 'zs-storage02', nvme_device: 'nvme5n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 698.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 82, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 82%', collected_at: '2026-05-25T12:33:52Z' },
+  { id: 'd05', hostname: 'zs-storage03', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash PM1725b 3.2TB SFF', capacity_tb: 3.20, tbw: 412.0, endurance_used_pct: 3, life_remaining_pct: 97, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:10Z' },
+  { id: 'd06', hostname: 'zs-storage04', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 885.0, endurance_used_pct: 10, life_remaining_pct: 90, available_spare_pct: 98, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:22Z' },
+  { id: 'd07', hostname: 'zs-storage05', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 944.0, endurance_used_pct: 12, life_remaining_pct: 88, available_spare_pct: 97, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:38Z' },
+  { id: 'd08', hostname: 'zs-storage06', nvme_device: 'nvme0n1', model_number: 'Dell Ent NVMe CM6 MU 3.2TB', capacity_tb: 3.20, tbw: 321.0, endurance_used_pct: 2, life_remaining_pct: 98, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:55Z' },
+]
+
 // ─── API Functions (with mock fallback) ──────────────────────────────────────
 
 export async function fetchHosts(): Promise<Host[]> {
@@ -498,6 +599,20 @@ export async function fetchResourceGroups(): Promise<ResourceGroup[]> {
   } catch {
     return MOCK_RESOURCE_GROUPS
   }
+}
+
+export async function createResourceGroup(data: { name: string; description?: string; project_ids: string[] }): Promise<ResourceGroup> {
+  const res = await apiClient.post<ResourceGroup>('/resource-groups', data)
+  return res.data
+}
+
+export async function updateResourceGroup(id: string, data: { name?: string; description?: string; project_ids?: string[] }): Promise<ResourceGroup> {
+  const res = await apiClient.put<ResourceGroup>(`/resource-groups/${id}`, data)
+  return res.data
+}
+
+export async function deleteResourceGroup(id: string): Promise<void> {
+  await apiClient.delete(`/resource-groups/${id}`)
 }
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
@@ -594,4 +709,53 @@ export async function fetchStorageCapacityTrend(
   } catch {
     return getMockStorageCapacityTrend(startDate, endDate)
   }
+}
+
+export async function fetchSmartctlLastUpdated(): Promise<string | null> {
+  try {
+    const res = await apiClient.get<{ last_updated: string | null }>('/disk-health/last-updated')
+    return res.data.last_updated
+  } catch {
+    return null
+  }
+}
+
+export async function fetchDiskHealth(hostname?: string, health?: string): Promise<DiskHealthRecord[]> {
+  try {
+    const params: Record<string, string> = {}
+    if (hostname) params.hostname = hostname
+    if (health) params.health = health
+    const res = await apiClient.get<DiskHealthRecord[]>('/disk-health', { params })
+    return res.data
+  } catch {
+    return MOCK_DISK_HEALTH
+  }
+}
+
+export async function refreshDiskHealth(): Promise<CollectResult> {
+  const res = await apiClient.post<CollectResult>('/disk-health/refresh')
+  return res.data
+}
+
+export async function fetchStorageNodes(): Promise<StorageNode[]> {
+  try {
+    const res = await apiClient.get<StorageNode[]>('/storage-nodes')
+    return res.data
+  } catch {
+    return MOCK_STORAGE_NODES
+  }
+}
+
+export async function createStorageNode(data: StorageNodeCreate): Promise<StorageNode> {
+  const res = await apiClient.post<StorageNode>('/storage-nodes', data)
+  return res.data
+}
+
+export async function updateStorageNode(id: string, data: StorageNodeUpdate): Promise<StorageNode> {
+  const res = await apiClient.put<StorageNode>(`/storage-nodes/${id}`, data)
+  return res.data
+}
+
+export async function deleteStorageNode(id: string): Promise<void> {
+  await apiClient.delete(`/storage-nodes/${id}`)
 }

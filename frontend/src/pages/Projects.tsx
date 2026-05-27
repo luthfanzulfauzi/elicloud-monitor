@@ -1,42 +1,57 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchProjects, type Project, type ProjectQuota } from '@/lib/api'
-import { Button } from '@/components/ui/button'
+import { fetchProjects, type Project } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import PaginationBar from '@/components/ui/PaginationBar'
 import { cn } from '@/lib/utils'
-
-const PAGE_SIZE = 20
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={cn('skeleton', className)} />
 }
 
-function buildPageList(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages: (number | '...')[] = []
-  const addPage = (n: number) => { if (pages[pages.length - 1] !== n) pages.push(n) }
-  addPage(1)
-  if (current > 3) pages.push('...')
-  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) addPage(p)
-  if (current < total - 2) pages.push('...')
-  addPage(total)
-  return pages
+function UsageBar({ used, quota }: { used: number; quota: number | null }) {
+  if (!quota) return null
+  const pct = Math.min(100, Math.round((used / quota) * 100))
+  const color = pct >= 90 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400'
+  return (
+    <div className="mt-1 h-1 w-full rounded-full bg-slate-100">
+      <div className={`h-1 rounded-full ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  )
 }
 
-function QuotaCell({ value, unit }: { value: number | null; unit: string }) {
-  if (value == null) return <span className="text-slate-300">—</span>
+function UsageQuotaCell({
+  used,
+  quota,
+  unit = '',
+  decimals = 0,
+}: {
+  used: number
+  quota: number | null
+  unit?: string
+  decimals?: number
+}) {
+  const fmt = (n: number) => decimals > 0 ? n.toFixed(decimals) : n.toLocaleString()
   return (
-    <span className="font-medium text-slate-700">
-      {value.toLocaleString()}
+    <div className="min-w-[80px]">
+      <span className="font-medium text-slate-700">{fmt(used)}</span>
+      {quota != null ? (
+        <>
+          <span className="mx-0.5 text-slate-300">/</span>
+          <span className="text-slate-400">{fmt(quota)}</span>
+        </>
+      ) : (
+        <span className="ml-0.5 text-slate-300">/ —</span>
+      )}
       {unit ? <span className="ml-0.5 text-slate-400 font-normal">{unit}</span> : null}
-    </span>
+      <UsageBar used={used} quota={quota} />
+    </div>
   )
 }
 
 function ProjectRow({ project }: { project: Project }) {
-  const q: ProjectQuota | null = project.quota ?? null
+  const q = project.quota ?? null
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3 text-xs font-medium text-slate-700 max-w-[200px] truncate" title={project.name}>
@@ -47,22 +62,44 @@ function ProjectRow({ project }: { project: Project }) {
           ? <Badge variant="success">Enabled</Badge>
           : <Badge variant="secondary">{project.state ?? '—'}</Badge>}
       </td>
-      <td className="px-4 py-3 text-xs"><QuotaCell value={q?.vm_num ?? null} unit="" /></td>
-      <td className="px-4 py-3 text-xs"><QuotaCell value={q?.vcpu_num ?? null} unit="vCPU" /></td>
       <td className="px-4 py-3 text-xs">
-        <QuotaCell value={q?.memory_gb != null ? Math.round(q.memory_gb) : null} unit="GB" />
+        <UsageQuotaCell used={project.vm_count} quota={q?.vm_num ?? null} />
       </td>
       <td className="px-4 py-3 text-xs">
-        <QuotaCell value={q?.storage_tb ?? null} unit="TB" />
+        <UsageQuotaCell used={project.vcpu_total} quota={q?.vcpu_num ?? null} unit="vCPU" />
       </td>
-      <td className="px-4 py-3 text-xs"><QuotaCell value={q?.volume_num ?? null} unit="" /></td>
-      <td className="px-4 py-3 text-xs"><QuotaCell value={q?.eip_num ?? null} unit="" /></td>
+      <td className="px-4 py-3 text-xs">
+        <UsageQuotaCell
+          used={Math.round(project.vram_total_gb)}
+          quota={q?.memory_gb != null ? Math.round(q.memory_gb) : null}
+          unit="GB"
+        />
+      </td>
+      <td className="px-4 py-3 text-xs">
+        <UsageQuotaCell
+          used={project.storage_total_tb}
+          quota={q?.storage_tb ?? null}
+          unit="TB"
+          decimals={2}
+        />
+      </td>
+      <td className="px-4 py-3 text-xs">
+        {q?.volume_num != null
+          ? <span className="text-slate-400 font-normal">— / <span className="text-slate-700 font-medium">{q.volume_num}</span></span>
+          : <span className="text-slate-300">—</span>}
+      </td>
+      <td className="px-4 py-3 text-xs">
+        {q?.eip_num != null
+          ? <span className="text-slate-400 font-normal">— / <span className="text-slate-700 font-medium">{q.eip_num}</span></span>
+          : <span className="text-slate-300">—</span>}
+      </td>
     </tr>
   )
 }
 
 export default function Projects() {
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -70,13 +107,15 @@ export default function Projects() {
   })
 
   const allProjects = projects ?? []
-  const totalPages = Math.max(1, Math.ceil(allProjects.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paginated = allProjects.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(allProjects.length / pageSize)))
+  const paginated = allProjects.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  const totalVMs = allProjects.reduce((s, p) => s + p.vm_count, 0)
   const totalVMQuota = allProjects.reduce((s, p) => s + (p.quota?.vm_num ?? 0), 0)
+  const totalCPU = allProjects.reduce((s, p) => s + p.vcpu_total, 0)
   const totalCPUQuota = allProjects.reduce((s, p) => s + (p.quota?.vcpu_num ?? 0), 0)
-  const totalRAMQuota = allProjects.reduce((s, p) => s + (p.quota?.memory_gb ?? 0), 0)
+  const totalRAM = Math.round(allProjects.reduce((s, p) => s + p.vram_total_gb, 0))
+  const totalRAMQuota = Math.round(allProjects.reduce((s, p) => s + (p.quota?.memory_gb ?? 0), 0))
   const totalStorageQuota = allProjects.reduce((s, p) => s + (p.quota?.storage_tb ?? 0), 0)
 
   return (
@@ -91,23 +130,28 @@ export default function Projects() {
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Total VM Quota</p>
-            <p className="mt-1 text-lg font-bold text-slate-800">{totalVMQuota.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Total CPU Quota</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">VMs Used / Quota</p>
             <p className="mt-1 text-lg font-bold text-slate-800">
-              {totalCPUQuota.toLocaleString()} <span className="text-sm font-normal text-slate-400">vCPU</span>
+              {totalVMs.toLocaleString()}
+              <span className="text-sm font-normal text-slate-400"> / {totalVMQuota.toLocaleString()}</span>
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Total RAM Quota</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">vCPU Used / Quota</p>
             <p className="mt-1 text-lg font-bold text-slate-800">
-              {Math.round(totalRAMQuota).toLocaleString()} <span className="text-sm font-normal text-slate-400">GB</span>
+              {totalCPU.toLocaleString()}
+              <span className="text-sm font-normal text-slate-400"> / {totalCPUQuota.toLocaleString()} vCPU</span>
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">RAM Used / Quota</p>
+            <p className="mt-1 text-lg font-bold text-slate-800">
+              {totalRAM.toLocaleString()}
+              <span className="text-sm font-normal text-slate-400"> / {totalRAMQuota.toLocaleString()} GB</span>
             </p>
           </CardContent>
         </Card>
@@ -117,7 +161,7 @@ export default function Projects() {
         <CardHeader className="pb-0">
           <CardTitle>Projects</CardTitle>
           <p className="text-[10px] text-slate-400">
-            {allProjects.length} ZStack IAM2 projects · quota values are limits allocated per project from ZStack ·
+            {allProjects.length} ZStack IAM2 projects · usage shown as <span className="font-semibold text-slate-500">used / quota</span> · progress bar: green &lt;70%, amber 70–90%, red ≥90% ·
             total storage quota: {totalStorageQuota.toFixed(1)} TB
           </p>
         </CardHeader>
@@ -135,10 +179,10 @@ export default function Projects() {
                       {[
                         'Project Name',
                         'State',
-                        'VM Quota',
-                        'vCPU Quota',
-                        'RAM Quota',
-                        'Storage Quota',
+                        'VMs (used/quota)',
+                        'vCPU (used/quota)',
+                        'RAM (used/quota)',
+                        'Storage (used/quota)',
                         'Volume Quota',
                         'EIP Quota',
                       ].map((h) => (
@@ -165,30 +209,16 @@ export default function Projects() {
                 </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-                  <p className="text-[10px] text-slate-500">
-                    {allProjects.length === 0 ? '0 results' : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, allProjects.length)} of ${allProjects.length}`}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-7 w-7" disabled={currentPage <= 1} onClick={() => setPage((p) => p - 1)}>
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </Button>
-                    {buildPageList(currentPage, totalPages).map((p, i) =>
-                      p === '...' ? (
-                        <span key={`e${i}`} className="px-1 text-[10px] text-slate-400 select-none">…</span>
-                      ) : (
-                        <Button key={p} variant={p === currentPage ? 'default' : 'outline'} size="icon" className="h-7 w-7 text-[10px]" onClick={() => setPage(p as number)}>
-                          {p}
-                        </Button>
-                      )
-                    )}
-                    <Button variant="outline" size="icon" className="h-7 w-7" disabled={currentPage >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <div className="px-4 pb-3">
+                <PaginationBar
+                  total={allProjects.length}
+                  page={currentPage}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[10, 20, 50]}
+                />
+              </div>
             </>
           )}
         </CardContent>

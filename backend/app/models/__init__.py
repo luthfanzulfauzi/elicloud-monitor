@@ -9,9 +9,11 @@ from .resource_group import ResourceGroup, ResourceGroupProject
 from .snapshot import SnapshotHost, SnapshotStorage
 from .collection_log import CollectionLog
 from .user import AppUser
+from .disk_health import DiskHealthRecord
+from .storage_node import StorageNode
 
 __all__ = [
     "Host", "PrimaryStorage", "Project", "VM", "Volume", "Tag", "EIP",
     "ResourceGroup", "ResourceGroupProject", "SnapshotHost", "SnapshotStorage",
-    "CollectionLog", "AppUser",
+    "CollectionLog", "AppUser", "DiskHealthRecord", "StorageNode",
 ]

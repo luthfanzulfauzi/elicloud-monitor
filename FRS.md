@@ -53,7 +53,9 @@ elicloudmonitor/
 │   │   │   ├── eip.py
 │   │   │   ├── resource_group.py
 │   │   │   ├── snapshot.py
-│   │   │   └── collection_log.py
+│   │   │   ├── collection_log.py
+│   │   │   ├── storage_node.py   # StorageNode registry
+│   │   │   └── disk_health.py    # DiskHealthRecord (parsed smartctl)
 │   │   ├── schemas/              # Pydantic request/response schemas
 │   │   ├── routers/              # FastAPI route handlers
 │   │   │   ├── auth.py           # POST /auth/login, GET /auth/me (public)
@@ -64,11 +66,14 @@ elicloudmonitor/
 │   │   │   ├── projects.py
 │   │   │   ├── resource_groups.py
 │   │   │   ├── reports.py
-│   │   │   └── dashboard.py
+│   │   │   ├── dashboard.py
+│   │   │   ├── storage_nodes.py  # CRUD for StorageNode registry
+│   │   │   └── disk_health.py    # Disk health query + refresh trigger
 │   │   ├── services/             # Business logic
-│   │   │   ├── zstack_client.py  # ZStack API HTTP client (GET only)
+│   │   │   ├── zstack_client.py  # ZStack API HTTP client (GET only) + ZQL queries
 │   │   │   ├── sync_service.py   # Data collection orchestration
-│   │   │   └── report_service.py # Report generation
+│   │   │   ├── report_service.py # Report generation
+│   │   │   └── smartctl_service.py # SCP collection + smartctl parser
 │   │   └── scheduler.py          # APScheduler setup
 │   └── alembic/                  # DB migrations
 ├── frontend/
@@ -85,6 +90,7 @@ elicloudmonitor/
 │   │   │   ├── Projects.tsx
 │   │   │   ├── ResourceGroups.tsx
 │   │   │   ├── Reports.tsx
+│   │   │   ├── DiskHealth.tsx    # NVMe disk health monitoring page
 │   │   │   └── Users.tsx
 │   │   ├── components/
 │   │   │   ├── auth/
@@ -211,6 +217,26 @@ Query params for `/vms`:
 | PUT | `/users/{id}/permissions` | Update user's permission matrix |
 | DELETE | `/users/{id}` | Delete a user |
 
+#### Storage Nodes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/storage-nodes` | List all storage nodes |
+| POST | `/storage-nodes` | Register a new storage node |
+| GET | `/storage-nodes/{id}` | Single storage node detail |
+| PUT | `/storage-nodes/{id}` | Update storage node config |
+| DELETE | `/storage-nodes/{id}` | Remove a storage node |
+
+#### Disk Health
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/disk-health` | List latest DiskHealthRecord for all devices (filter: `?hostname=&health=`) |
+| GET | `/disk-health/{hostname}` | All disk records for a specific storage node hostname |
+| POST | `/disk-health/refresh` | Trigger on-demand SCP collection + re-parse for all enabled nodes |
+| POST | `/disk-health/refresh/{storage_node_id}` | Trigger refresh for a single storage node |
+| GET | `/disk-health/export/csv` | Export disk health table as CSV |
+
 #### Admin / Status
 
 | Method | Path | Description |
@@ -231,21 +257,48 @@ Query params for `/vms`:
 
 ### ZStack Endpoints to Consume (read-only)
 
-| ZStack Resource | ZStack API Action |
-|----------------|-------------------|
-| Hosts | `QueryHostAction` |
-| Primary Storage | `QueryPrimaryStorageAction` |
-| VMs | `QueryVmInstanceAction` |
-| Volumes | `QueryVolumeAction` |
-| Projects | `QueryProjectAction` |
-| EIPs | `QueryEipAction` |
-| Tags | `QuerySystemTagAction`, `QueryUserTagAction` |
+| ZStack Resource | Method | ZStack API / Endpoint |
+|----------------|--------|-----------------------|
+| Hosts | REST | `QueryHostAction` → `GET /v1/hosts` |
+| Primary Storage | REST | `QueryPrimaryStorageAction` → `GET /v1/primary-storage` |
+| VMs | REST | `QueryVmInstanceAction` → `GET /v1/vm-instances` |
+| Volumes | REST | `QueryVolumeAction` → `GET /v1/volumes` |
+| Projects | REST | `QueryIAM2ProjectAction` → `GET /v1/iam2/projects` |
+| EIPs | REST | `QueryEipAction` → `GET /v1/eips` |
+| Tags | REST | `QuerySystemTagAction`, `QueryUserTagAction` |
+| **VM → Project ownership** | **ZQL** | `GET /v1/zql?zql=query+accountresourceref+...` |
+
+### ZQL vs ZStack REST API
+
+ZStack REST API endpoints expose fields from each resource's `Inventory` class only. `VmInstanceInventory` has no account/project ownership field — querying with `q=accountUuid=...` or `q=__projectUuid__=...` returns `503: field not found`.
+
+**ZQL** (`GET /v1/zql`) is a separate read-only query interface that queries ZStack's internal entity model directly. It can access internal tables not exposed as REST endpoints. ZQL is **strictly read-only** (query/SELECT only — no insert/update/delete).
+
+The `accountresourceref` entity (ZStack's internal `AccountResourceRefVO` table) is only accessible via ZQL. It contains `ownerAccountUuid` per resource, enabling VM → Project association.
 
 ### Sync Logic
-1. Fetch all resources via ZStack Query APIs (support pagination via `start` + `limit`)
-2. Upsert into local DB using `zstack_uuid` as the idempotency key
-3. Soft-delete any local records whose `zstack_uuid` was not seen in the latest sync
-4. Write a `CollectionLog` entry on completion
+1. Fetch all resources via ZStack REST APIs (pagination via `start` + `limit`)
+2. Fetch VM ownership refs via ZQL `accountresourceref` (pagination via `offset` + `limit`)
+3. Upsert into local DB using `zstack_uuid` as the idempotency key
+4. Resolve `vm.project_id` using: `ownerAccountUuid` → `project.linkedAccountUuid` → `project.id`
+5. Write a `CollectionLog` entry on completion
+
+### VM → Project Mapping (Phase 2.7 — Pending)
+
+The standard ZStack REST API cannot associate VMs with projects. The working approach:
+
+```
+accountresourceref.resourceUuid (VmInstanceVO, isShared=false)
+  → VM.zstack_uuid
+
+accountresourceref.ownerAccountUuid
+  → Project.linkedAccountUuid
+  → Project
+```
+
+**Coverage:** 1,181 / 1,217 VMs (97%) match an IAM2 project. 36 VMs owned by admin account have `project_id = null`.
+
+**New function in `zstack_client.py`:** `fetch_vm_owner_refs() → dict[str, str]` — paginates `query accountresourceref`, filters `VmInstanceVO + isShared=false` client-side, returns `{vm_uuid: owner_account_uuid}`.
 
 ---
 
@@ -273,7 +326,7 @@ export interface ComputePoint { date: string; vcpu: number; ram_gb: number }
 export type UserRole = 'Admin' | 'Operator' | 'Viewer'
 export type UserStatus = 'Active' | 'Inactive'
 export type AppModule = 'Dashboard' | 'Hosts' | 'VMs' | 'Storage' | 'Projects' |
-                        'Resource Groups' | 'Reports' | 'User Management'
+                        'Resource Groups' | 'Reports' | 'Disk Health' | 'User Management'
 export type PermissionMap = Record<AppModule, { view: boolean; manage: boolean }>
 
 export interface AppUser {
@@ -289,7 +342,7 @@ export interface AppUser {
 
 export const APP_MODULES: AppModule[] = [
   'Dashboard', 'Hosts', 'VMs', 'Storage', 'Projects',
-  'Resource Groups', 'Reports', 'User Management'
+  'Resource Groups', 'Reports', 'Disk Health', 'User Management'
 ]
 
 // Returns role-default PermissionMap
@@ -351,6 +404,16 @@ All `fetchX()` functions attempt the real backend API and fall back to mock data
 - **Storage tab**: summary stat cards + `TrendChart` bar chart (blue) + daily table (Date, GB)
 - **Compute tab**: summary stat cards + `ComputeTrendChart` dual-axis bar chart + daily table (Date, vCPU, RAM GB)
 - Export CSV/PDF buttons (disabled until backend is wired)
+
+#### Disk Health (`/disk-health`)
+- Data table: all NVMe disks across all storage nodes, latest SMART data
+- Columns: Hostname, NVMe Device, Model Number, Capacity, TBW (TB), Endurance Used %, Write Endurance (Life Remaining) %, Available Spare %, Disk Health, Summary, Notes
+- Disk Health badge: `PASSED`=green, `FAILED`=red
+- Filter bar: Hostname dropdown, Health Status dropdown (All / PASSED / FAILED)
+- Last collected timestamp shown per storage node or as a global badge
+- "Refresh" button → `POST /disk-health/refresh`; shows loading state while running
+- Export CSV button → `GET /disk-health/export/csv`
+- Falls back to mock data when backend is unavailable
 
 #### Users (`/users`)
 - **Admin-only page** — non-Admin users (Operator, Viewer) are redirected to `/` by a route-level guard using `useCurrentUser`

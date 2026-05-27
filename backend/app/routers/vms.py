@@ -5,13 +5,63 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import VM, Volume
-from ..schemas.vm import VMOut, VMTrendPoint
+from ..models import VM, Volume, Project
+from ..schemas.vm import VMOut, VMTrendPoint, VolumeInfo
 from ..schemas.storage import ComputePoint
 
 router = APIRouter(prefix="/vms", tags=["vms"])
 
 GB = 1024 ** 3
+
+
+def _resolve_storage_name(vol) -> str | None:
+    ps = vol.primary_storage
+    if ps is None:
+        return None
+    if ps.storage_type == "Ceph" and vol.install_path and ps.ceph_pools:
+        try:
+            pool_part = vol.install_path.split("://", 1)[1].split("/")[0]
+            for pool in ps.ceph_pools:
+                if pool.get("poolName") == pool_part:
+                    alias = pool.get("aliasName")
+                    return alias if alias else ps.name
+        except (IndexError, AttributeError):
+            pass
+    return ps.name
+
+
+def _build_vm_out(v: VM) -> VMOut:
+    root_volume: VolumeInfo | None = None
+    data_volumes: list[VolumeInfo] = []
+
+    for vol in sorted(v.volumes, key=lambda x: (x.device_id or 0)):
+        vi = VolumeInfo(
+            name=vol.name,
+            type=vol.type or "Unknown",
+            size_gb=round((vol.size or 0) / GB, 2),
+            storage_name=_resolve_storage_name(vol),
+        )
+        if vol.type == "Root":
+            root_volume = vi
+        else:
+            data_volumes.append(vi)
+
+    return VMOut(
+        id=v.id,
+        name=v.name,
+        state=v.state,
+        host=v.host.name if v.host else None,
+        platform=v.platform,
+        private_ip=v.private_ip,
+        eip=v.eip,
+        vcpu=v.vcpu_num,
+        vram_gb=round(v.memory_size / GB, 2) if v.memory_size else None,
+        storage_gb=round(sum(vol.size or 0 for vol in v.volumes) / GB, 2),
+        created_at=v.zstack_created_at.isoformat() if v.zstack_created_at else None,
+        project_name=v.project.name if v.project else None,
+        root_volume=root_volume,
+        data_volumes=data_volumes,
+    )
 
 
 async def _vm_trend_query(start_date, end_date, db):
@@ -36,31 +86,18 @@ async def list_vms(
     per_page: int = Query(2000, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(VM).options(selectinload(VM.host), selectinload(VM.volumes))
+    q = select(VM).options(
+        selectinload(VM.host),
+        selectinload(VM.volumes).selectinload(Volume.primary_storage),
+        selectinload(VM.project),
+    )
     if state:
         q = q.where(VM.state == state)
     if search:
         q = q.where(VM.name.ilike(f"%{search}%") | VM.private_ip.ilike(f"%{search}%"))
-    q = q.offset((page - 1) * per_page).limit(per_page)
+    q = q.order_by(VM.zstack_created_at.desc().nulls_last()).offset((page - 1) * per_page).limit(per_page)
     vms = (await db.execute(q)).scalars().all()
-
-    result = []
-    for v in vms:
-        storage_gb = round(sum(vol.size or 0 for vol in v.volumes) / GB, 2)
-        result.append(VMOut(
-            id=v.id,
-            name=v.name,
-            state=v.state,
-            host=v.host.name if v.host else None,
-            platform=v.platform,
-            private_ip=v.private_ip,
-            eip=v.eip,
-            vcpu=v.vcpu_num,
-            vram_gb=round(v.memory_size / GB, 2) if v.memory_size else None,
-            storage_gb=storage_gb,
-            created_at=v.zstack_created_at.isoformat() if v.zstack_created_at else None,
-        ))
-    return result
+    return [_build_vm_out(v) for v in vms]
 
 
 @router.get("/trend", response_model=list[VMTrendPoint])
@@ -95,28 +132,16 @@ async def vms_created_in_range(
     vms = (
         await db.execute(
             select(VM)
-            .options(selectinload(VM.host), selectinload(VM.volumes))
+            .options(
+                selectinload(VM.host),
+                selectinload(VM.volumes).selectinload(Volume.primary_storage),
+                selectinload(VM.project),
+            )
             .where(VM.zstack_created_at >= since, VM.zstack_created_at <= until_inclusive)
             .order_by(VM.zstack_created_at.desc())
         )
     ).scalars().all()
-    result = []
-    for v in vms:
-        storage_gb = round(sum(vol.size or 0 for vol in v.volumes) / GB, 2)
-        result.append(VMOut(
-            id=v.id,
-            name=v.name,
-            state=v.state,
-            host=v.host.name if v.host else None,
-            platform=v.platform,
-            private_ip=v.private_ip,
-            eip=v.eip,
-            vcpu=v.vcpu_num,
-            vram_gb=round(v.memory_size / GB, 2) if v.memory_size else None,
-            storage_gb=storage_gb,
-            created_at=v.zstack_created_at.isoformat() if v.zstack_created_at else None,
-        ))
-    return result
+    return [_build_vm_out(v) for v in vms]
 
 
 @router.get("/compute-trend", response_model=list[ComputePoint])

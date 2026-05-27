@@ -14,16 +14,18 @@ GB = 1024 ** 3
 
 
 async def _enrich(rg: ResourceGroup, db: AsyncSession) -> ResourceGroupOut:
-    proj_ids = [m.project_id for m in rg.project_memberships]
+    membership_ids = [m.project_id for m in rg.project_memberships]
     proj_names: list[str] = []
+    resolved_ids: list = []
     vms: list[VM] = []
-    for pid in proj_ids:
+    for pid in membership_ids:
         proj = (await db.execute(
             select(Project).options(selectinload(Project.vms).selectinload(VM.volumes))
             .where(Project.id == pid)
         )).scalar_one_or_none()
         if proj:
             proj_names.append(proj.name)
+            resolved_ids.append(proj.id)
             vms.extend(proj.vms)
 
     vcpu = sum(v.vcpu_num or 0 for v in vms)
@@ -34,6 +36,7 @@ async def _enrich(rg: ResourceGroup, db: AsyncSession) -> ResourceGroupOut:
         name=rg.name,
         description=rg.description,
         projects=proj_names,
+        project_ids=resolved_ids,
         vm_count=len(vms),
         vcpu_total=vcpu,
         vram_gb=mem_gb,

@@ -1,8 +1,14 @@
 from pydantic import BaseModel
-from datetime import datetime
 from uuid import UUID
 
 GB = 1024 ** 3
+
+
+class VolumeInfo(BaseModel):
+    name: str
+    type: str
+    size_gb: float
+    storage_name: str | None
 
 
 class VMOut(BaseModel):
@@ -17,6 +23,9 @@ class VMOut(BaseModel):
     vram_gb: float | None
     storage_gb: float | None
     created_at: str | None
+    project_name: str | None
+    root_volume: VolumeInfo | None
+    data_volumes: list[VolumeInfo]
 
 
 class VMTrendPoint(BaseModel):

@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from .config import settings
 from .database import engine, Base, get_db
 from .scheduler import scheduler, setup_scheduler
 from .security import get_current_user, hash_password
-from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute
+from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -44,9 +44,16 @@ async def _seed_admin():
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("ALTER TABLE volumes ADD COLUMN IF NOT EXISTS install_path VARCHAR;"))
     log.info("Database tables ready")
 
     await _seed_admin()
+
+    from .services.smartctl_service import parse_and_upsert_all
+    async for db in get_db():
+        parsed, errors = await parse_and_upsert_all(db)
+        log.info("Initial smartctl parse: %d parsed, %d errors", parsed, errors)
+        break
 
     setup_scheduler()
     scheduler.start()
@@ -90,6 +97,8 @@ app.include_router(resource_groups.router, prefix=PREFIX, **_protected)
 app.include_router(users.router, prefix=PREFIX, **_protected)
 app.include_router(compute.router, prefix=PREFIX, **_protected)
 app.include_router(status.router, prefix=PREFIX, **_protected)
+app.include_router(disk_health_router.router, prefix=PREFIX, **_protected)
+app.include_router(storage_nodes_router.router, prefix=PREFIX, **_protected)
 
 
 @app.get("/")

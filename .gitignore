@@ -45,6 +45,8 @@ Thumbs.db
 *.override.yml
 
 # Sensitive / scratch files
+ssh_keys/*
+!ssh_keys/.gitkeep
 *.pem
 *.ppk
 *.key

@@ -19,6 +19,7 @@ class Volume(Base):
     size: Mapped[int | None] = mapped_column(BigInteger)
     actual_size: Mapped[int | None] = mapped_column(BigInteger)
     device_id: Mapped[int | None] = mapped_column(Integer)
+    install_path: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[object | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
 

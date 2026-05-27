@@ -1,12 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { fetchHosts, fetchHostTrend, type Host } from '@/lib/api'
 import DataTable, { type Column } from '@/components/tables/DataTable'
 import HostTrendChart from '@/components/charts/HostTrendChart'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -15,24 +12,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import PaginationBar from '@/components/ui/PaginationBar'
 import { calcPercent, cn } from '@/lib/utils'
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={cn('skeleton', className)} />
-}
-
-const PAGE_SIZE_OPTIONS = [10, 25, 50]
-
-function buildPageList(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages: (number | '...')[] = []
-  const addPage = (n: number) => { if (pages[pages.length - 1] !== n) pages.push(n) }
-  addPage(1)
-  if (current > 3) pages.push('...')
-  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) addPage(p)
-  if (current < total - 2) pages.push('...')
-  addPage(total)
-  return pages
 }
 
 type HostRow = Host & Record<string, unknown>
@@ -133,7 +117,6 @@ export default function Hosts() {
   const [trendPreset, setTrendPreset] = useState<DatePreset>('30d')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [goToInput, setGoToInput] = useState('')
 
   const { data: hosts, isLoading } = useQuery({
     queryKey: ['hosts'],
@@ -155,16 +138,8 @@ export default function Hosts() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-  const pageList = buildPageList(currentPage, totalPages)
 
   function resetPage() { setPage(1) }
-
-  function handleGoTo(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== 'Enter') return
-    const n = parseInt(goToInput, 10)
-    if (!isNaN(n) && n >= 1 && n <= totalPages) setPage(n)
-    setGoToInput('')
-  }
 
   const selectedHostName =
     trendHostId === 'all'
@@ -212,53 +187,13 @@ export default function Hosts() {
                 emptyMessage="No hosts match the current filter."
               />
               {/* Pagination bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-1 pt-3">
-                <div className="flex items-center gap-3">
-                  <p className="text-[10px] text-slate-500">
-                    {filtered.length === 0
-                      ? '0 results'
-                      : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filtered.length)} of ${filtered.length}`}
-                  </p>
-                  <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); resetPage() }}>
-                    <SelectTrigger className="h-7 w-20 text-[10px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAGE_SIZE_OPTIONS.map((n) => (
-                        <SelectItem key={n} value={String(n)} className="text-[10px]">{n} / page</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-7 w-7" disabled={currentPage <= 1} onClick={() => setPage((p) => p - 1)}>
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  {pageList.map((p, i) =>
-                    p === '...' ? (
-                      <span key={`e${i}`} className="px-1 text-[10px] text-slate-400 select-none">…</span>
-                    ) : (
-                      <Button key={p} variant={p === currentPage ? 'default' : 'outline'} size="icon" className="h-7 w-7 text-[10px]" onClick={() => setPage(p as number)}>
-                        {p}
-                      </Button>
-                    )
-                  )}
-                  <Button variant="outline" size="icon" className="h-7 w-7" disabled={currentPage >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">Go to</span>
-                  <Input
-                    className="h-7 w-16 text-center text-[10px]"
-                    placeholder={String(currentPage)}
-                    value={goToInput}
-                    onChange={(e) => setGoToInput(e.target.value)}
-                    onKeyDown={handleGoTo}
-                  />
-                  <span className="text-[10px] text-slate-400">/ {totalPages}</span>
-                </div>
-              </div>
+              <PaginationBar
+                total={filtered.length}
+                page={currentPage}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
             </>
           )}
         </CardContent>

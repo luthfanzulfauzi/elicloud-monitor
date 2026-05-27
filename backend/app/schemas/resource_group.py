@@ -20,6 +20,7 @@ class ResourceGroupOut(BaseModel):
     name: str
     description: str | None
     projects: list[str] = []
+    project_ids: list[UUID] = []
     vm_count: int = 0
     vcpu_total: int = 0
     vram_gb: float = 0

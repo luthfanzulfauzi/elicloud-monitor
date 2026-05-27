@@ -35,7 +35,9 @@
       "Bash(pip install *)",
       "Bash(python3 -m pip install \"python-jose[cryptography]\" \"passlib[bcrypt]\" -q)",
       "Bash(pip3 install *)",
-      "Bash(python3 -c \"import uvicorn; print\\(uvicorn.__file__\\)\")"
+      "Bash(python3 -c \"import uvicorn; print\\(uvicorn.__file__\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

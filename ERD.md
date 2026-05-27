@@ -23,6 +23,8 @@
 | `SnapshotStorage` | Point-in-time metrics snapshot for Storage |
 | `CollectionLog` | Audit log of each API data collection run |
 | `AppUser` | Application user with role and per-module permissions (not a ZStack entity) |
+| `StorageNode` | Registry of storage servers that expose smartctl output via SCP (app-managed) |
+| `DiskHealthRecord` | Latest parsed NVMe SMART metrics per (hostname, nvme_device) pair (app-managed) |
 
 ---
 
@@ -216,23 +218,64 @@ AppUser {
 **PermissionMap** (stored as JSONB in `AppUser.permissions`):
 ```
 PermissionMap {
-    Dashboard:       { view: bool, manage: bool }
-    Hosts:           { view: bool, manage: bool }
-    VMs:             { view: bool, manage: bool }
-    Storage:         { view: bool, manage: bool }
-    Projects:        { view: bool, manage: bool }
+    Dashboard:         { view: bool, manage: bool }
+    Hosts:             { view: bool, manage: bool }
+    VMs:               { view: bool, manage: bool }
+    Storage:           { view: bool, manage: bool }
+    Projects:          { view: bool, manage: bool }
     "Resource Groups": { view: bool, manage: bool }
-    Reports:         { view: bool, manage: bool }
+    Reports:           { view: bool, manage: bool }
+    "Disk Health":     { view: bool, manage: bool }
     "User Management": { view: bool, manage: bool }
 }
 ```
 
 Role defaults:
 - **Admin**: all `view=true, manage=true` (non-editable; locked)
-- **Operator**: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=true` for Hosts, VMs, Storage, Projects, Resource Groups; `manage=false` for Dashboard, Reports
+- **Operator**: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=true` for Hosts, VMs, Storage, Projects, Resource Groups, Disk Health; `manage=false` for Dashboard, Reports
 - **Viewer**: `view=true` for all modules **except** User Management (`view=false, manage=false`); `manage=false` everywhere
 
 > `User Management` is Admin-only — Operators and Viewers have `view=false, manage=false` for this module and cannot access the Users page.
+
+### StorageNode
+```
+StorageNode {
+    id              UUID        PK
+    hostname        VARCHAR     UNIQUE NOT NULL   -- display name / hostname label
+    ssh_host        VARCHAR     NOT NULL          -- IP or FQDN for SCP connection
+    ssh_port        INT         NOT NULL DEFAULT 22
+    ssh_user        VARCHAR     NOT NULL
+    ssh_key_path    VARCHAR     NOT NULL          -- path to private key on the monitor VM
+    remote_dir      VARCHAR     NOT NULL          -- remote directory where smart.txt files are stored
+    enabled         BOOLEAN     NOT NULL DEFAULT true
+    last_collected_at TIMESTAMP                   -- timestamp of last successful SCP pull
+    created_at      TIMESTAMP
+    updated_at      TIMESTAMP
+}
+```
+
+### DiskHealthRecord
+```
+DiskHealthRecord {
+    id                  UUID        PK
+    storage_node_id     UUID        FK -> StorageNode
+    hostname            VARCHAR     NOT NULL          -- from parsed filename / smartctl header
+    nvme_device         VARCHAR     NOT NULL          -- e.g. nvme0n1
+    model_number        VARCHAR
+    capacity_bytes      BIGINT                        -- Total NVM Capacity in bytes
+    data_units_written  BIGINT                        -- raw from smartctl (512000 bytes per unit)
+    tbw                 FLOAT                         -- calculated: data_units_written × 512000 / 1e12
+    endurance_used_pct  FLOAT                         -- Percentage Used from smartctl
+    life_remaining_pct  FLOAT                         -- 100 - endurance_used_pct
+    available_spare_pct FLOAT                         -- Available Spare from smartctl
+    disk_health         VARCHAR     NOT NULL          -- PASSED | FAILED
+    summary             VARCHAR                       -- human-readable one-liner
+    notes               TEXT                          -- additional observations
+    raw_output          TEXT                          -- full smartctl text (for debugging)
+    collected_at        TIMESTAMP   NOT NULL          -- when this record was parsed
+    UNIQUE(hostname, nvme_device)
+}
+```
 
 ---
 
@@ -249,6 +292,7 @@ ResourceGroup   ||--o{ ResourceGroupProject : "contains"
 VM              ||--o{ Volume               : "has"
 VM              ||--o{ Tag                  : "has"
 VM              ||--o| EIP                  : "may have"
+StorageNode     ||--o{ DiskHealthRecord     : "has disk records"
 ```
 
 ---
@@ -309,3 +353,6 @@ VM              ||--o| EIP                  : "may have"
 - `ResourceGroup` is application-managed (not synced from ZStack) — full CRUD allowed in app DB
 - `AppUser` is application-managed (not synced from ZStack) — full CRUD allowed in app DB
 - `AppUser.permissions` JSONB column avoids a separate permissions join table while remaining queryable
+- `StorageNode` is application-managed — full CRUD allowed in app DB; SSH credentials point to files on the monitor VM filesystem
+- `DiskHealthRecord` is upserted on each collection run keyed on `(hostname, nvme_device)` — always reflects the latest smartctl parse result; raw output preserved for debugging
+- `DiskHealthRecord.tbw` is a derived/calculated column stored for query convenience — recalculated on each parse

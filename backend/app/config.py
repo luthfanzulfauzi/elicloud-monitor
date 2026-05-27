@@ -22,5 +22,9 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "*"
 
+    SMARTCTL_DIR: str = "/app/smartctl"
+    SMARTCTL_COLLECT_INTERVAL_SECONDS: int = 3600
+    SMARTCTL_KNOWN_HOSTS: str = ""
+
 
 settings = Settings()

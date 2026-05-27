@@ -264,22 +264,22 @@ async def run_sync() -> CollectionLog:
             raw_eips = await zs.fetch_eips()
             raw_volumes = await zs.fetch_volumes()
 
-            # Build account uuid → name map for owner field
-            account_name_map: dict[str, str] = {}
+            # Build VM→project mapping via ZQL accountresourceref
+            vm_owner_refs: dict[str, str] = {}
             try:
-                raw_accounts = await zs.fetch_accounts()
-                for acct in raw_accounts:
-                    acct_uuid = acct.get("uuid")
-                    acct_name = acct.get("name")
-                    if acct_uuid and acct_name:
-                        account_name_map[acct_uuid] = acct_name
-            except Exception as acct_exc:
-                log.warning("Could not fetch accounts for owner mapping: %s", acct_exc)
+                vm_owner_refs = await zs.fetch_vm_owner_refs()
+                log.info("Fetched %d VM owner refs via ZQL", len(vm_owner_refs))
+            except Exception as ref_exc:
+                log.warning("Could not fetch VM owner refs (project_id will not be updated): %s", ref_exc)
 
             # Build lookup maps
-            project_map: dict[str, object] = {
-                r.zstack_uuid: r.id
-                for r in (await db.execute(select(Project))).scalars().all()
+            all_projects = (await db.execute(select(Project))).scalars().all()
+            project_map: dict[str, object] = {r.zstack_uuid: r.id for r in all_projects}
+            # linked_account_uuid → project app id (for ZQL-based owner matching)
+            acct_to_project_id: dict[str, object] = {
+                r.linked_account_uuid: r.id
+                for r in all_projects
+                if r.linked_account_uuid
             }
             host_map: dict[str, object] = {
                 r.zstack_uuid: r.id
@@ -315,7 +315,6 @@ async def run_sync() -> CollectionLog:
             for v in raw_vms:
                 uuid = v["uuid"]
                 host_uuid = v.get("hostUuid") or v.get("lastHostUuid")
-                project_uuid = v.get("__projectUuid__")
 
                 # Determine private IP from vmNics
                 private_ip = None
@@ -328,8 +327,9 @@ async def run_sync() -> CollectionLog:
                     if nic_uuid:
                         eip = eip_by_vm_nic.get(nic_uuid)
 
-                acct_uuid = v.get("accountUuid")
-                owner = account_name_map.get(acct_uuid) if acct_uuid else None
+                # Resolve project_id via ZQL owner refs: vm_uuid → ownerAccountUuid → project
+                owner_acct_uuid = vm_owner_refs.get(uuid)
+                project_id = acct_to_project_id.get(owner_acct_uuid) if owner_acct_uuid else None
 
                 upsert_values = dict(
                     zstack_uuid=uuid,
@@ -337,6 +337,7 @@ async def run_sync() -> CollectionLog:
                     description=v.get("description"),
                     state=v.get("state"),
                     host_id=host_map.get(host_uuid) if host_uuid else None,
+                    project_id=project_id,
                     private_ip=private_ip,
                     eip=eip,
                     vcpu_num=v.get("cpuNum"),
@@ -344,7 +345,6 @@ async def run_sync() -> CollectionLog:
                     platform=v.get("platform"),
                     image_name=v.get("imageName"),
                     hypervisor_type=v.get("hypervisorType"),
-                    owner=owner,
                     zstack_created_at=_parse_zstack_date(v.get("createDate")),
                     created_at=_parse_zstack_date(v.get("createDate")),
                     updated_at=datetime.now(timezone.utc),
@@ -353,21 +353,15 @@ async def run_sync() -> CollectionLog:
                     name=v.get("name", ""),
                     state=v.get("state"),
                     host_id=host_map.get(host_uuid) if host_uuid else None,
+                    project_id=project_id,
                     private_ip=private_ip,
                     eip=eip,
                     vcpu_num=v.get("cpuNum"),
                     memory_size=v.get("memorySize"),
                     platform=v.get("platform"),
-                    owner=owner,
                     # NEVER overwrite zstack_created_at
                     updated_at=datetime.now(timezone.utc),
                 )
-                # Only set project_id on insert/update if ZStack returned it
-                if project_uuid:
-                    upsert_values["project_id"] = project_map.get(project_uuid)
-                    update_fields["project_id"] = project_map.get(project_uuid)
-                else:
-                    upsert_values["project_id"] = None
 
                 stmt = (
                     pg_insert(VM)
@@ -420,6 +414,7 @@ async def run_sync() -> CollectionLog:
                         size=vol.get("size"),
                         actual_size=vol.get("actualSize"),
                         device_id=vol.get("deviceId"),
+                        install_path=vol.get("installPath"),
                         created_at=_parse_zstack_date(vol.get("createDate")),
                         updated_at=datetime.now(timezone.utc),
                     )
@@ -431,6 +426,7 @@ async def run_sync() -> CollectionLog:
                             vm_id=vm_uuid_to_id.get(vm_uuid) if vm_uuid else None,
                             size=vol.get("size"),
                             actual_size=vol.get("actualSize"),
+                            install_path=vol.get("installPath"),
                             updated_at=datetime.now(timezone.utc),
                         ),
                     )
