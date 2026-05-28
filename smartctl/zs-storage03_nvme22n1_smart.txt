@@ -1,5 +1,5 @@
 ===== Device: /dev/nvme22n1 =====
-===== Date: Wed May 27 23:02:51 CST 2026 =====
+===== Date: Thu May 28 13:05:14 CST 2026 =====
 
 --- SMART INFO (-a) ---
 smartctl 7.1 2020-04-05 r5049 [x86_64-linux-4.18.0-425.19.2.4.g0fd3a169.el8.x86_64] (local build)
@@ -19,7 +19,7 @@ Number of Namespaces:               1
 Namespace 1 Size/Capacity:          3,200,631,791,616 [3.20 TB]
 Namespace 1 Formatted LBA Size:     512
 Namespace 1 IEEE EUI-64:            002538 211100006f
-Local Time is:                      Wed May 27 23:02:51 2026 CST
+Local Time is:                      Thu May 28 13:05:14 2026 CST
 Firmware Updates (0x17):            3 Slots, Slot 1 R/O, no Reset required
 Optional Admin Commands (0x0016):   Format Frmw_DL Self_Test
 Optional NVM Commands (0x0036):     Wr_Unc DS_Mngmt Sav/Sel_Feat Resv
@@ -47,19 +47,19 @@ Temperature:                        28 Celsius
 Available Spare:                    100%
 Available Spare Threshold:          10%
 Percentage Used:                    0%
-Data Units Read:                    66,685,580 [34.1 TB]
-Data Units Written:                 346,219,367 [177 TB]
-Host Read Commands:                 2,037,205,599
-Host Write Commands:                19,422,649,758
-Controller Busy Time:               26,969
+Data Units Read:                    66,954,463 [34.2 TB]
+Data Units Written:                 347,411,976 [177 TB]
+Host Read Commands:                 2,044,283,861
+Host Write Commands:                19,476,014,183
+Controller Busy Time:               26,991
 Power Cycles:                       68
-Power On Hours:                     28,230
+Power On Hours:                     28,244
 Unsafe Shutdowns:                   61
 Media and Data Integrity Errors:    0
 Error Information Log Entries:      0
 Warning  Comp. Temperature Time:    0
 Critical Comp. Temperature Time:    0
-Temperature Sensor 1:               27 Celsius
+Temperature Sensor 1:               28 Celsius
 Temperature Sensor 2:               28 Celsius
 Temperature Sensor 3:               23 Celsius
 

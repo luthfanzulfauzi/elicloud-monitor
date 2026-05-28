@@ -1,5 +1,5 @@
 ===== Device: /dev/nvme19n1 =====
-===== Date: Wed May 27 23:03:10 CST 2026 =====
+===== Date: Thu May 28 13:05:34 CST 2026 =====
 
 --- SMART INFO (-a) ---
 smartctl 7.1 2020-04-05 r5049 [x86_64-linux-4.18.0-425.19.2.4.g0fd3a169.el8.x86_64] (local build)
@@ -19,7 +19,7 @@ Number of Namespaces:               1
 Namespace 1 Size/Capacity:          3,200,631,791,616 [3.20 TB]
 Namespace 1 Formatted LBA Size:     512
 Namespace 1 IEEE EUI-64:            5cd2e4 12d33c0100
-Local Time is:                      Wed May 27 23:03:11 2026 CST
+Local Time is:                      Thu May 28 13:05:34 2026 CST
 Firmware Updates (0x02):            1 Slot
 Optional Admin Commands (0x000e):   Format Frmw_DL NS_Mngmt
 Optional NVM Commands (0x0006):     Wr_Unc DS_Mngmt
@@ -41,17 +41,17 @@ SMART overall-health self-assessment test result: PASSED
 
 SMART/Health Information (NVMe Log 0x02)
 Critical Warning:                   0x00
-Temperature:                        30 Celsius
+Temperature:                        31 Celsius
 Available Spare:                    100%
 Available Spare Threshold:          10%
 Percentage Used:                    0%
-Data Units Read:                    62,109,201 [31.7 TB]
-Data Units Written:                 333,031,031 [170 TB]
-Host Read Commands:                 1,966,498,039
-Host Write Commands:                19,668,089,487
-Controller Busy Time:               496
+Data Units Read:                    62,376,547 [31.9 TB]
+Data Units Written:                 334,221,724 [171 TB]
+Host Read Commands:                 1,973,299,182
+Host Write Commands:                19,722,843,102
+Controller Busy Time:               497
 Power Cycles:                       50
-Power On Hours:                     12,600
+Power On Hours:                     12,614
 Unsafe Shutdowns:                   1
 Media and Data Integrity Errors:    0
 Error Information Log Entries:      0

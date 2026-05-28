@@ -1,5 +1,5 @@
 ===== Device: /dev/nvme2n1 =====
-===== Date: Wed May 27 23:02:57 CST 2026 =====
+===== Date: Thu May 28 13:05:21 CST 2026 =====
 
 --- SMART INFO (-a) ---
 smartctl 7.1 2020-04-05 r5049 [x86_64-linux-4.18.0-425.19.2.4.g0fd3a169.el8.x86_64] (local build)
@@ -19,7 +19,7 @@ Number of Namespaces:               1
 Namespace 1 Size/Capacity:          3,200,631,791,616 [3.20 TB]
 Namespace 1 Formatted LBA Size:     512
 Namespace 1 IEEE EUI-64:            002538 21110000d2
-Local Time is:                      Wed May 27 23:02:57 2026 CST
+Local Time is:                      Thu May 28 13:05:21 2026 CST
 Firmware Updates (0x17):            3 Slots, Slot 1 R/O, no Reset required
 Optional Admin Commands (0x0016):   Format Frmw_DL Self_Test
 Optional NVM Commands (0x0036):     Wr_Unc DS_Mngmt Sav/Sel_Feat Resv
@@ -43,24 +43,24 @@ SMART overall-health self-assessment test result: PASSED
 
 SMART/Health Information (NVMe Log 0x02)
 Critical Warning:                   0x00
-Temperature:                        28 Celsius
+Temperature:                        29 Celsius
 Available Spare:                    100%
 Available Spare Threshold:          10%
 Percentage Used:                    0%
-Data Units Read:                    66,970,788 [34.2 TB]
-Data Units Written:                 395,776,677 [202 TB]
-Host Read Commands:                 2,066,364,608
-Host Write Commands:                22,568,486,402
-Controller Busy Time:               25,473
+Data Units Read:                    67,213,924 [34.4 TB]
+Data Units Written:                 396,901,433 [203 TB]
+Host Read Commands:                 2,072,464,996
+Host Write Commands:                22,615,553,968
+Controller Busy Time:               25,492
 Power Cycles:                       50
-Power On Hours:                     28,222
+Power On Hours:                     28,236
 Unsafe Shutdowns:                   43
 Media and Data Integrity Errors:    0
 Error Information Log Entries:      0
 Warning  Comp. Temperature Time:    0
 Critical Comp. Temperature Time:    0
 Temperature Sensor 1:               28 Celsius
-Temperature Sensor 2:               28 Celsius
+Temperature Sensor 2:               29 Celsius
 Temperature Sensor 3:               24 Celsius
 
 Error Information (NVMe Log 0x01, max 64 entries)
