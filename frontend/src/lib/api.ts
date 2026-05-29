@@ -101,6 +101,7 @@ export interface AppUser {
   status: UserStatus
   created_at: string
   last_login: string | null
+  last_active_at: string | null
   permissions: PermissionMap
 }
 
@@ -404,11 +405,11 @@ export const MOCK_RESOURCE_GROUPS: ResourceGroup[] = [
 ]
 
 export const MOCK_USERS: AppUser[] = [
-  { id: 'u1', name: 'Elit Admin', email: 'elit@elitery.com', role: 'Admin', status: 'Active', created_at: '2025-01-01', last_login: '2026-05-22T10:30:00', permissions: defaultPermissions('Admin') },
-  { id: 'u2', name: 'Sarah Ops', email: 'sarah.ops@elitery.com', role: 'Operator', status: 'Active', created_at: '2025-03-15', last_login: '2026-05-22T08:15:00', permissions: defaultPermissions('Operator') },
-  { id: 'u3', name: 'John Viewer', email: 'john.viewer@elitery.com', role: 'Viewer', status: 'Active', created_at: '2025-06-01', last_login: '2026-05-20T14:22:00', permissions: defaultPermissions('Viewer') },
-  { id: 'u4', name: 'Alice Infrastructure', email: 'alice.infra@elitery.com', role: 'Operator', status: 'Active', created_at: '2025-08-10', last_login: '2026-05-21T16:45:00', permissions: defaultPermissions('Operator') },
-  { id: 'u5', name: 'Bob Tester', email: 'bob.test@elitery.com', role: 'Viewer', status: 'Inactive', created_at: '2025-09-20', last_login: '2026-02-10T09:00:00', permissions: defaultPermissions('Viewer') },
+  { id: 'u1', name: 'Elit Admin', email: 'elit@elitery.com', role: 'Admin', status: 'Active', created_at: '2025-01-01', last_login: '2026-05-29T10:30:00', last_active_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(), permissions: defaultPermissions('Admin') },
+  { id: 'u2', name: 'Sarah Ops', email: 'sarah.ops@elitery.com', role: 'Operator', status: 'Active', created_at: '2025-03-15', last_login: '2026-05-29T08:15:00', last_active_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(), permissions: defaultPermissions('Operator') },
+  { id: 'u3', name: 'John Viewer', email: 'john.viewer@elitery.com', role: 'Viewer', status: 'Active', created_at: '2025-06-01', last_login: '2026-05-27T14:22:00', last_active_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(), permissions: defaultPermissions('Viewer') },
+  { id: 'u4', name: 'Alice Infrastructure', email: 'alice.infra@elitery.com', role: 'Operator', status: 'Active', created_at: '2025-08-10', last_login: '2026-05-28T16:45:00', last_active_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), permissions: defaultPermissions('Operator') },
+  { id: 'u5', name: 'Bob Tester', email: 'bob.test@elitery.com', role: 'Viewer', status: 'Inactive', created_at: '2025-09-20', last_login: '2026-02-10T09:00:00', last_active_at: null, permissions: defaultPermissions('Viewer') },
 ]
 
 const TREND_COUNTS = [2, 0, 3, 1, 0, 0, 4, 2, 1, 3, 0, 0, 2, 5, 1, 0, 0, 3, 2, 1, 4, 0, 0, 2, 1, 3, 0, 0, 2, 1]

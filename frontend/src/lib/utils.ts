@@ -39,7 +39,7 @@ export function formatDate(dateStr: string): string {
 }
 
 export function timeAgo(dateStr: string): string {
-  const now = new Date('2026-05-22T10:35:00')
+  const now = new Date()
   const date = new Date(dateStr)
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)

@@ -17,3 +17,4 @@ class AppUser(Base):
     permissions: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login: Mapped[object | None] = mapped_column(DateTime(timezone=True))
+    last_active_at: Mapped[object | None] = mapped_column(DateTime(timezone=True))

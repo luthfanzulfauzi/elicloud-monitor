@@ -2,7 +2,7 @@
 ## EliCloud Monitor
 
 **Version:** 1.1  
-**Date:** 2026-05-25  
+**Date:** 2026-05-29  
 
 ---
 
@@ -197,7 +197,7 @@ Query params for `/vms`:
 |--------|------|-------------|
 | POST | `/auth/login` | Accepts `{ email, password }` → returns `{ access_token, token_type, expires_in, user }` |
 | POST | `/auth/logout` | Invalidates session (client-side token clear; stateless JWT) |
-| GET | `/auth/me` | Returns current user profile + `PermissionMap` (requires valid Bearer token) |
+| GET | `/auth/me` | Returns current user profile + `PermissionMap`; updates `last_active_at` on every call (requires valid Bearer token) |
 
 - All routes except `POST /auth/login` require `Authorization: Bearer <token>` header
 - Invalid / expired token → HTTP 401 `{ detail: "Not authenticated" }`
@@ -250,8 +250,11 @@ Query params for `/vms`:
 ## 5. ZStack API Client Spec
 
 ### Authentication
-- Header: `Authorization: OAuth <session_token>`
-- Session token obtained via POST to ZStack login endpoint using AccessKey ID + AccessKey Secret
+- Header: `Authorization: ZStack <AccessKeyID>:<Base64(HMAC-SHA1(secret, "METHOD\nDate\n/v1/path"))>`
+- `Date` header: RFC 1123 GMT format — must not drift >15 min from ZStack server clock
+- URI for signing: `/v1/<path>` — no `/zstack` prefix, no query string
+- Actual request URL: `<ZSTACK_ENDPOINT>/zstack/v1/<path>`
+- Authentication is stateless — no session token. Each request is independently signed.
 
 > **Ultimate rule:** ZStack API is used strictly to query data. `zstack_client.py` implements GET/query methods only. CRUD operations (create, update, delete) apply only to this app's own PostgreSQL database — never to ZStack.
 
@@ -283,7 +286,7 @@ The `accountresourceref` entity (ZStack's internal `AccountResourceRefVO` table)
 4. Resolve `vm.project_id` using: `ownerAccountUuid` → `project.linkedAccountUuid` → `project.id`
 5. Write a `CollectionLog` entry on completion
 
-### VM → Project Mapping (Phase 2.7 — Pending)
+### VM → Project Mapping (Implemented)
 
 The standard ZStack REST API cannot associate VMs with projects. The working approach:
 
@@ -298,7 +301,7 @@ accountresourceref.ownerAccountUuid
 
 **Coverage:** 1,181 / 1,217 VMs (97%) match an IAM2 project. 36 VMs owned by admin account have `project_id = null`.
 
-**New function in `zstack_client.py`:** `fetch_vm_owner_refs() → dict[str, str]` — paginates `query accountresourceref`, filters `VmInstanceVO + isShared=false` client-side, returns `{vm_uuid: owner_account_uuid}`.
+**Implemented in `zstack_client.py`:** `fetch_vm_owner_refs() → dict[str, str]` — paginates `query accountresourceref`, filters `VmInstanceVO + isShared=false` client-side, returns `{vm_uuid: owner_account_uuid}`. Called during every sync run.
 
 ---
 
@@ -337,6 +340,7 @@ export interface AppUser {
   status: UserStatus
   created_at: string
   last_login: string | null
+  last_active_at: string | null
   permissions: PermissionMap
 }
 
@@ -419,7 +423,8 @@ All `fetchX()` functions attempt the real backend API and fall back to mock data
 - **Admin-only page** — non-Admin users (Operator, Viewer) are redirected to `/` by a route-level guard using `useCurrentUser`
 - Sidebar System section (User Management link) hidden for non-Admin users via `usePermission('User Management').view`
 - Summary stat cards: Total Users, Active, Inactive, Admins
-- User table columns: User (avatar + name), Email, Role badge, Status badge, Last Login, Created At, Actions
+- User table columns: User (avatar + name), Email, Role badge, Status badge, Session status, Last Login, Created At, Actions
+- **Session status** badge: green dot = Online (last_active_at <5 min), amber dot = Idle (5 min–8 hr), gray dot = Offline (>8 hr or null) — computed client-side from `last_active_at`
 - Role badges: Admin=violet, Operator=amber, Viewer=slate
 - Actions: Edit (Pencil), Permissions (ShieldCheck, violet), Delete (Trash2, double-click to arm then confirm) — shown only when `canManage === true`
 - **Create/Edit Dialog**: name, email, role Select, status Select, password field (required for create, optional for edit); role change resets permissions to defaults

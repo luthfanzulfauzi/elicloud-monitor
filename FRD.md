@@ -2,7 +2,7 @@
 ## EliCloud Monitor
 
 **Version:** 1.1  
-**Date:** 2026-05-25  
+**Date:** 2026-05-29  
 
 ---
 
@@ -185,6 +185,8 @@ EliCloud Monitor consists of three layers:
 | FR-11A.5 | Frontend shall store the JWT in localStorage and attach it as `Authorization: Bearer <token>` on all API requests |
 | FR-11A.6 | All backend routes except `/auth/login` shall require a valid JWT; return HTTP 401 if missing or expired |
 | FR-11A.7 | System shall update `last_login` timestamp for the user on each successful login |
+| FR-11A.12 | System shall update `last_active_at` timestamp for the user on every successful `GET /auth/me` request |
+| FR-11A.13 | System shall derive and display a session status per user — **Online** (last active <5 min), **Idle** (5 min – 8 hr), **Offline** (>8 hr or never active) |
 | FR-11A.8 | System shall provide a logout action that clears the token and redirects to `/login` |
 | FR-11A.9 | System shall provide a `/auth/me` endpoint returning the current user's profile and permission map |
 | FR-11A.10 | Frontend shall use the current user's `PermissionMap` to gate UI elements (hide/disable per module) |
@@ -196,7 +198,7 @@ EliCloud Monitor consists of three layers:
 |----|-------------|
 | FR-11.1 | System shall support application user accounts with name, email, role, and status |
 | FR-11.2 | System shall support three roles: Admin, Operator, Viewer — with the following defaults: Admin=all view+manage (locked); Operator=view all except User Management, manage operational modules; Viewer=view all except User Management, manage none |
-| FR-11.3 | System shall provide a per-user permission matrix covering all 8 application modules: Dashboard, Hosts, VMs, Storage, Projects, Resource Groups, Reports, User Management |
+| FR-11.3 | System shall provide a per-user permission matrix covering all 9 application modules: Dashboard, Hosts, VMs, Storage, Projects, Resource Groups, Reports, Disk Health, User Management |
 | FR-11.4 | Each permission entry shall have independent View and Manage flags |
 | FR-11.5 | Admin role permissions shall be fixed (all View+Manage) and not editable per-user; the `User Management` module shall have `view=false, manage=false` for all non-Admin roles by default |
 | FR-11.6 | Selecting Manage for a module shall automatically select View; deselecting View shall automatically deselect Manage |

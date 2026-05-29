@@ -192,6 +192,13 @@ All configuration is via `.env` file or environment variables. Never hardcode se
 |----------|---------|-------------|
 | `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | Backend API base URL (used at build time) |
 
+### Cloudflare Tunnel (optional)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_DOMAIN` | — | Public domain served via Cloudflare Tunnel (e.g. `elicloudmonitor.example.com`) — added to CORS allow-list automatically |
+| `CLOUDFLARE_TUNNEL_TOKEN` | — | Cloudflare Tunnel token — if set, a `cloudflared` container is started automatically in Docker Compose |
+
 ---
 
 ## Application Walkthrough
@@ -275,7 +282,7 @@ Search bar filters across name and IP. State/project dropdowns narrow results. *
 
 ### Projects (`/projects`)
 
-All ZStack projects with resource summary. Note: due to ZStack IAM2 API constraints, per-project VM counts are shown as "N/A via admin API" — this is expected behavior when using AccessKey auth.
+All ZStack IAM2 projects with resource summary — VM count, total vCPU, vRAM, and storage allocation. VM–project ownership is resolved via ZQL (`query accountresourceref`) during each sync run, covering 97% of VMs. The remaining 3% are admin-owned VMs with no associated project.
 
 ---
 
@@ -372,7 +379,8 @@ Full user lifecycle management. Non-Admin users are redirected to `/`.
 | Email | Login email |
 | Role | Admin (violet) / Operator (amber) / Viewer (slate) |
 | Status | Active / Inactive |
-| Last Login | Most recent successful login |
+| Session | Live session status — **Online** (green dot, active <5 min), **Idle** (amber dot, 5 min–8 hr), **Offline** (gray dot, >8 hr or never) |
+| Last Login | Timestamp of the most recent successful login |
 | Created At | Account creation date |
 
 #### Actions (Admin only)
@@ -681,48 +689,187 @@ elicloudmonitor/
 
 All endpoints except `POST /auth/login` require `Authorization: Bearer <token>`.
 
-#### Authentication
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/login` | `{ email, password }` → `{ access_token, user }` |
-| GET | `/auth/me` | Current user profile + permissions |
+> Full interactive docs (Swagger UI) available at `http://localhost:8000/docs`
+
+---
+
+### Authentication
+
+| Method | Path | Auth required | Description |
+|--------|------|---------------|-------------|
+| POST | `/auth/login` | No | `{ email, password }` → `{ access_token, token_type, expires_in, user }` |
+| GET | `/auth/me` | Yes | Current user profile + `PermissionMap`; also updates `last_active_at` |
 
 #### Dashboard
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/dashboard/summary` | Cluster-wide counts + storage totals |
 | GET | `/dashboard/vm-trend` | VM creation per day (`?days=30`) |
-| GET | `/dashboard/storage-trend` | Storage provisioned per day |
-| GET | `/dashboard/compute-trend` | vCPU + RAM provisioned per day |
-| GET | `/dashboard/top-hosts` | Top N hosts by utilization |
+| GET | `/dashboard/storage-trend` | Storage provisioned per day (`?days=30`) |
+| GET | `/dashboard/compute-trend` | vCPU + RAM provisioned per day (`?days=30`) |
+| GET | `/dashboard/top-hosts` | Top N hosts by CPU utilization |
 
-#### Hosts, Storage, VMs, Projects, Resource Groups
-Standard REST endpoints — see `/docs` (FastAPI auto-generated Swagger UI at `http://localhost:8000/docs`).
+#### Hosts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/hosts` | List all physical hosts |
+| GET | `/hosts/trend` | Host CPU/memory snapshot trend |
+
+#### Storage
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/storage` | List all primary storage pools |
+| GET | `/storage/trend` | Storage capacity trend (`?days=30`) |
+| GET | `/storage/capacity-trend` | Physical capacity trend |
+
+#### VMs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/vms` | List all VMs |
+| GET | `/vms/trend` | VM state trend over time |
+| GET | `/vms/created-by-period` | VM creation count grouped by period |
+| GET | `/vms/created-in-range` | VMs created in a date range (`?start=&end=`) |
+| GET | `/vms/compute-trend` | Compute (vCPU + RAM) provisioned per day |
+
+#### Projects
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/projects` | List all IAM2 projects with resource summary |
+
+#### Resource Groups
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/resource-groups` | List all resource groups |
+| POST | `/resource-groups` | Create a new resource group |
+| GET | `/resource-groups/{id}` | Group detail with aggregated summary |
+| PUT | `/resource-groups/{id}` | Update group (name, projects) |
+| DELETE | `/resource-groups/{id}` | Delete group |
+
+#### Users
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/users` | List all app users |
+| POST | `/users` | Create a user |
+| GET | `/users/{id}` | Single user |
+| PUT | `/users/{id}` | Update user (name, email, role, status, password) |
+| PUT | `/users/{id}/permissions` | Update permission matrix |
+| DELETE | `/users/{id}` | Delete user |
 
 #### Disk Health
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/disk-health` | All drive records (`?hostname=&health=PASSED\|FAILED`) |
-| POST | `/disk-health/refresh` | SCP collect all nodes + re-parse all files |
-| GET | `/disk-health/export/csv` | Server-generated CSV of all records |
+| GET | `/disk-health` | All NVMe drive records (`?hostname=&health=PASSED\|FAILED`) |
+| POST | `/disk-health/refresh` | Trigger SCP collect + re-parse on all enabled nodes |
+| GET | `/disk-health/export/csv` | Server-generated CSV export |
 
 #### Storage Nodes
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/storage-nodes` | List all registered nodes |
-| POST | `/storage-nodes` | Register a new node |
+| GET | `/storage-nodes` | List all registered SSH nodes |
+| POST | `/storage-nodes` | Register a node |
 | PUT | `/storage-nodes/{id}` | Update node config |
 | DELETE | `/storage-nodes/{id}` | Remove a node |
 
 #### Sync & Status
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/status` | App health, last sync time |
+| GET | `/status` | App health, last sync time, sync status |
 | POST | `/sync/trigger` | Trigger manual ZStack sync |
 | GET | `/sync/logs` | Paginated collection log history |
-| GET | `/users` | List app users |
 
-Full interactive API docs: `http://localhost:8000/docs`
+---
+
+### API Usage Walkthrough
+
+#### Step 1 — Get a token
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@elitery.com","password":"admin123"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+echo $TOKEN
+```
+
+The token is valid for **8 hours**. From an external server replace `localhost` with the server IP or `APP_DOMAIN`.
+
+#### Step 2 — Query data
+
+```bash
+# Cluster summary
+curl -s http://localhost:8000/api/v1/dashboard/summary \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# All hosts
+curl -s http://localhost:8000/api/v1/hosts \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# All VMs
+curl -s http://localhost:8000/api/v1/vms \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# All projects
+curl -s http://localhost:8000/api/v1/projects \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# Storage pools
+curl -s http://localhost:8000/api/v1/storage \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# Last sync status
+curl -s http://localhost:8000/api/v1/status \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# Disk health (all drives)
+curl -s http://localhost:8000/api/v1/disk-health \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# VM creation trend (last 30 days)
+curl -s "http://localhost:8000/api/v1/dashboard/vm-trend?days=30" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+#### Step 3 — Python example (persistent session)
+
+```python
+import requests
+
+BASE = "http://localhost:8000/api/v1"
+
+# Login once — reuse token for 8 hours
+r = requests.post(f"{BASE}/auth/login",
+    json={"email": "admin@elitery.com", "password": "admin123"})
+r.raise_for_status()
+token = r.json()["access_token"]
+headers = {"Authorization": f"Bearer {token}"}
+
+# Query all VMs
+vms = requests.get(f"{BASE}/vms", headers=headers).json()
+print(f"{len(vms)} VMs")
+
+# Query projects
+projects = requests.get(f"{BASE}/projects", headers=headers).json()
+for p in projects:
+    print(p["name"], "→", p.get("vm_count", 0), "VMs")
+
+# Trigger a manual sync
+requests.post(f"{BASE}/sync/trigger", headers=headers)
+```
+
+#### Data source note
+
+All API responses are served from the **local PostgreSQL database** — not live from ZStack. Data is refreshed every `ZSTACK_POLL_INTERVAL_SECONDS` (default: 5 minutes) by the background sync job. Check the last sync time at `GET /status`.
 
 ---
 
@@ -730,9 +877,9 @@ Full interactive API docs: `http://localhost:8000/docs`
 
 1. **ZStack API is strictly read-only.** `zstack_client.py` implements GET/query methods only. No POST, PUT, DELETE, or PATCH to ZStack — ever.
 2. **All CRUD in this app's own database only.** Resource Groups, StorageNodes, AppUsers, CollectionLogs — the only tables this app writes to.
-3. **ZStack VM–project association unavailable via admin AccessKey.** ZStack IAM2 stores this internally but does not expose it via the admin API. VMs show `project = N/A` — this is expected.
+3. **VM–project association resolved via ZQL, not REST.** ZStack's standard REST API (`VmInstanceInventory`) does not expose account/project ownership. The app uses ZQL (`GET /v1/zql?zql=query accountresourceref ...`) to fetch ownership data from ZStack's internal `AccountResourceRefVO` table. Coverage: ~97% of VMs. The remaining ~3% are admin-owned VMs with no IAM2 project. See `zql_flow.md` for details.
 4. **SSH keys must be mounted into the backend container.** Place keys in `./ssh_keys/` and reference them as `/app/ssh_keys/<filename>` in the StorageNode config.
-5. **Alembic migrations are pending.** DB schema is created via `create_all()` on startup. Alembic migration files are not yet generated — do not alter table structure without regenerating the schema.
+5. **Alembic migrations are pending.** DB schema is created via `create_all()` on startup. For new columns added to existing tables, apply `ALTER TABLE` manually — see deployment steps in each feature's release notes.
 
 ---
 
@@ -784,6 +931,7 @@ Use `docker compose logs -f backend` to tail backend logs including sync activit
 | `FRD.md` | Functional Requirements — what the system must do |
 | `FRS.md` | Functional Requirements Specification — tech stack, API spec, data models |
 | `CLAUDE.md` | AI assistant conventions, coding rules, implementation status |
+| `zql_flow.md` | ZQL query flow — VM→Project association, other non-REST queries, auth signing |
 | `smartctl/CLAUDE.md` | smartctl file format, parsing conventions, drive model quirks |
 
 ---

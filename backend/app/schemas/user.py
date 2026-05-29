@@ -63,3 +63,4 @@ class AppUserOut(BaseModel):
     permissions: dict
     created_at: datetime
     last_login: datetime | None
+    last_active_at: datetime | None

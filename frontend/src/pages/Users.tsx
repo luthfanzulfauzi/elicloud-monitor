@@ -56,6 +56,36 @@ function RoleBadge({ role }: { role: UserRole }) {
   )
 }
 
+// ─── Login status badge ───────────────────────────────────────────────────────
+
+const ONLINE_MS  = 5  * 60 * 1000   // < 5 min  → Online
+const IDLE_MS    = 8  * 60 * 60 * 1000 // < 8 hr → Idle  (within token validity)
+
+type SessionStatus = 'online' | 'idle' | 'offline'
+
+function sessionStatus(lastActiveAt: string | null): SessionStatus {
+  if (!lastActiveAt) return 'offline'
+  const diff = Date.now() - new Date(lastActiveAt).getTime()
+  if (diff < ONLINE_MS) return 'online'
+  if (diff < IDLE_MS)   return 'idle'
+  return 'offline'
+}
+
+function LoginStatusBadge({ lastActiveAt }: { lastActiveAt: string | null }) {
+  const status = sessionStatus(lastActiveAt)
+  const config = {
+    online:  { dot: 'bg-emerald-400', text: 'text-emerald-600', label: 'Online' },
+    idle:    { dot: 'bg-amber-400',   text: 'text-amber-600',   label: 'Idle'   },
+    offline: { dot: 'bg-slate-300',   text: 'text-slate-400',   label: 'Offline' },
+  }[status]
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={cn('h-1.5 w-1.5 flex-shrink-0 rounded-full', config.dot)} />
+      <span className={cn('text-[10px] font-medium', config.text)}>{config.label}</span>
+    </span>
+  )
+}
+
 // ─── Avatar initial ───────────────────────────────────────────────────────────
 
 function Avatar({ name }: { name: string }) {
@@ -258,7 +288,7 @@ export default function Users() {
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {['User', 'Email', 'Role', 'Status', 'Last Login', 'Created', 'Actions'].map((h) => (
+                  {['User', 'Email', 'Role', 'Status', 'Session', 'Last Login', 'Created', 'Actions'].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500"
@@ -271,7 +301,7 @@ export default function Users() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {displayUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-[10px] text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-[10px] text-slate-400">
                       No users found.
                     </td>
                   </tr>
@@ -292,6 +322,9 @@ export default function Users() {
                         <Badge variant={user.status === 'Active' ? 'success' : 'secondary'}>
                           {user.status}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <LoginStatusBadge lastActiveAt={user.last_active_at} />
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">
                         {user.last_login ? timeAgo(user.last_login) : <span className="text-slate-300">Never</span>}

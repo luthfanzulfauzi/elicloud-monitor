@@ -48,5 +48,11 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=AppUserOut)
-async def me(current_user: AppUser = Depends(get_current_user)):
+async def me(
+    current_user: AppUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.last_active_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

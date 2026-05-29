@@ -2,7 +2,7 @@
 ## EliCloud Monitor
 
 **Version:** 1.1  
-**Date:** 2026-05-25  
+**Date:** 2026-05-29  
 
 ---
 
@@ -211,7 +211,8 @@ AppUser {
     password_hash   VARCHAR                   -- bcrypt hash
     permissions     JSONB       NOT NULL      -- PermissionMap (see below)
     created_at      TIMESTAMP   NOT NULL
-    last_login      TIMESTAMP                 -- nullable
+    last_login      TIMESTAMP                 -- nullable; set on each successful login
+    last_active_at  TIMESTAMP                 -- nullable; updated on every GET /auth/me call
 }
 ```
 
@@ -353,6 +354,7 @@ StorageNode     ||--o{ DiskHealthRecord     : "has disk records"
 - `ResourceGroup` is application-managed (not synced from ZStack) — full CRUD allowed in app DB
 - `AppUser` is application-managed (not synced from ZStack) — full CRUD allowed in app DB
 - `AppUser.permissions` JSONB column avoids a separate permissions join table while remaining queryable
+- `AppUser.last_active_at` is updated on every `GET /auth/me` request — used to derive session status (Online: <5 min, Idle: 5 min–8 hr, Offline: >8 hr or null)
 - `StorageNode` is application-managed — full CRUD allowed in app DB; SSH credentials point to files on the monitor VM filesystem
 - `DiskHealthRecord` is upserted on each collection run keyed on `(hostname, nvme_device)` — always reflects the latest smartctl parse result; raw output preserved for debugging
 - `DiskHealthRecord.tbw` is a derived/calculated column stored for query convenience — recalculated on each parse

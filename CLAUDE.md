@@ -103,19 +103,19 @@ Refer to `FRS.md` for the full directory structure and API specification.
 
 ---
 
-## Implementation Status (as of 2026-05-25)
+## Implementation Status (as of 2026-05-29)
 
 | Area | Status | Notes |
 |------|--------|-------|
 | ZStack sync + all data models | ✅ Done | AccessKey HMAC-SHA1 auth, full upsert sync |
 | Backend routers (dashboard, hosts, storage, vms, projects, resource_groups, users, compute, status) | ✅ Done | |
-| Frontend — all 8 pages + charts + export | ✅ Done | Industrial Precision UI; client-side CSV/PDF |
+| Frontend — all 9 pages + charts + export | ✅ Done | Industrial Precision UI; client-side CSV/PDF (Login, Dashboard, Hosts, Storage, VMs, Projects, Resource Groups, Reports, Disk Health, Users) |
 | Docker Compose + Dockerfiles | ✅ Done | postgres + backend + frontend services |
-| User authentication (login, JWT, protected routes, role gating) | ✅ Done | Phase 2.5 — Login page, ProtectedRoute, JWT Bearer, `/auth/login` + `/auth/me`, seed admin, `useCurrentUser` + `usePermission` hooks, sidebar + page gating |
-| VM → Project association sync | ❌ Pending | Phase 2.7 — Use ZQL `query accountresourceref` to populate `vm.project_id`; see implementation plan below |
-| Disk Health Monitoring (smartctl SCP collector + DiskHealth page) | ❌ Pending | Phase 2.6 — StorageNode registry, `smartctl_service.py`, `/disk-health` + `/storage-nodes` routers, `DiskHealth.tsx` page |
-| Alembic migrations | ❌ Pending | `alembic/versions/` is empty — DB uses `create_all()` on startup |
-| `/reports` backend router (CSV/PDF export) | ❌ Pending | Phase 3 |
+| User authentication (login, JWT, protected routes, role gating) | ✅ Done | Phase 2.5 — Login page, ProtectedRoute, JWT Bearer, `/auth/login` + `/auth/me`, seed admin, `useCurrentUser` + `usePermission` hooks, sidebar + page gating; `last_active_at` tracked on every `/auth/me` call; session status (Online/Idle/Offline) shown in Users page |
+| VM → Project association sync | ✅ Done | ZQL `query accountresourceref` → `fetch_vm_owner_refs()` in `zstack_client.py`; 97% VM coverage (36 admin-owned VMs have `project_id=null`) |
+| Disk Health Monitoring (smartctl SCP collector + DiskHealth page) | ✅ Done | StorageNode registry, `smartctl_service.py`, `/disk-health` + `/storage-nodes` routers, `DiskHealth.tsx` page |
+| Alembic migrations | ❌ Pending | `alembic/versions/` is empty — DB uses `create_all()` on startup; new columns require manual `ALTER TABLE` |
+| `/reports` backend router (CSV/PDF export) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
 | Deployment docs | ❌ Pending | Phase 4 |
 
 ---
@@ -221,7 +221,7 @@ The application includes a full User Management + Authentication system. This is
 - **Permission editing**: per-user permission matrix dialog; checking Manage auto-checks View; unchecking View auto-unchecks Manage
 - **Route guard**: `Users.tsx` redirects non-Admin users to `/` via `useCurrentUser` hook
 - **Sidebar gating**: System section hidden when `usePermission('User Management').view === false`
-- Types defined in `src/lib/api.ts`: `AppUser`, `UserRole`, `UserStatus`, `AppModule` (9 modules including `'Disk Health'`), `PermissionMap`
+- Types defined in `src/lib/api.ts`: `AppUser` (includes `last_active_at: string | null`), `UserRole`, `UserStatus`, `AppModule` (9 modules including `'Disk Health'`), `PermissionMap`
 - Hooks: `src/hooks/useCurrentUser.ts`, `src/hooks/usePermission.ts`
 
 ---
