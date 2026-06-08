@@ -23,6 +23,8 @@ class VM(Base):
     image_name: Mapped[str | None] = mapped_column(String)
     hypervisor_type: Mapped[str | None] = mapped_column(String)
     owner: Mapped[str | None] = mapped_column(String)
+    vm_type: Mapped[str | None] = mapped_column(String)        # UserVm | ApplianceVm
+    appliance_type: Mapped[str | None] = mapped_column(String) # VirtualRouter | LoadBalancer | …
     # Original creation timestamp from ZStack — never overwrite
     zstack_created_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[object | None] = mapped_column(DateTime(timezone=True))

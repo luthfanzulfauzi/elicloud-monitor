@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -345,6 +345,8 @@ async def run_sync() -> CollectionLog:
                     platform=v.get("platform"),
                     image_name=v.get("imageName"),
                     hypervisor_type=v.get("hypervisorType"),
+                    vm_type=v.get("type"),
+                    appliance_type=v.get("applianceType"),
                     zstack_created_at=_parse_zstack_date(v.get("createDate")),
                     created_at=_parse_zstack_date(v.get("createDate")),
                     updated_at=datetime.now(timezone.utc),
@@ -359,6 +361,8 @@ async def run_sync() -> CollectionLog:
                     vcpu_num=v.get("cpuNum"),
                     memory_size=v.get("memorySize"),
                     platform=v.get("platform"),
+                    vm_type=v.get("type"),
+                    appliance_type=v.get("applianceType"),
                     # NEVER overwrite zstack_created_at
                     updated_at=datetime.now(timezone.utc),
                 )
@@ -459,6 +463,21 @@ async def run_sync() -> CollectionLog:
                 )
                 await db.execute(stmt)
             await db.commit()
+
+            # Delete stale VMs (deleted from ZStack) — only modifies local DB, never ZStack
+            live_vm_uuids = {v["uuid"] for v in raw_vms}
+            if live_vm_uuids:
+                stale_vms = (await db.execute(
+                    select(VM).where(VM.zstack_uuid.not_in(live_vm_uuids))
+                )).scalars().all()
+                if stale_vms:
+                    stale_vm_ids = [vm.id for vm in stale_vms]
+                    await db.execute(delete(Tag).where(Tag.vm_id.in_(stale_vm_ids)))
+                    await db.execute(update(Volume).where(Volume.vm_id.in_(stale_vm_ids)).values(vm_id=None))
+                    await db.execute(delete(VM).where(VM.id.in_(stale_vm_ids)))
+                    await db.commit()
+                    log.info("Removed %d stale VMs from DB: %s",
+                             len(stale_vms), [v.name for v in stale_vms])
 
             vms_synced = len(raw_vms)
             log.info("Synced %d VMs", vms_synced)

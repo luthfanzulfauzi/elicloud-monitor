@@ -45,6 +45,8 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("ALTER TABLE volumes ADD COLUMN IF NOT EXISTS install_path VARCHAR;"))
+        await conn.execute(text("ALTER TABLE vms ADD COLUMN IF NOT EXISTS vm_type VARCHAR;"))
+        await conn.execute(text("ALTER TABLE vms ADD COLUMN IF NOT EXISTS appliance_type VARCHAR;"))
     log.info("Database tables ready")
 
     await _seed_admin()

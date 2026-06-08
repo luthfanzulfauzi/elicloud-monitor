@@ -4,14 +4,35 @@ from sqlalchemy import select, func, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import or_
+
 from ..database import get_db
 from ..models import VM, Volume, Project
-from ..schemas.vm import VMOut, VMTrendPoint, VolumeInfo
+from ..schemas.vm import VMOut, VMTrendPoint, VolumeInfo, InfraVMOut
 from ..schemas.storage import ComputePoint
 
 router = APIRouter(prefix="/vms", tags=["vms"])
 
 GB = 1024 ** 3
+
+# Filter that matches user VMs — includes NULL rows during initial sync before vm_type is populated
+_USER_VM = or_(VM.vm_type == "UserVm", VM.vm_type.is_(None))
+_INFRA_VM = VM.vm_type == "ApplianceVm"
+
+_INFRA_TYPE_MAP = {"VirtualRouter": "vRouter", "LoadBalancer": "LB"}
+
+
+def _infer_infra_type(name: str, appliance_type: str | None) -> str:
+    if appliance_type:
+        return _INFRA_TYPE_MAP.get(appliance_type, appliance_type)
+    n = name.lower()
+    if any(x in n for x in ("vrouter", "vpc-router", "nat-gateway", "nat-gtw")):
+        return "vRouter"
+    if n.startswith("lb-") or "loadbalancer" in n:
+        return "LB"
+    if n.startswith("repl-"):
+        return "Replication"
+    return "Appliance"
 
 
 def _resolve_storage_name(vol) -> str | None:
@@ -71,7 +92,7 @@ async def _vm_trend_query(start_date, end_date, db):
     rows = (
         await db.execute(
             select(cast(VM.zstack_created_at, Date).label("day"), func.count(VM.id).label("cnt"))
-            .where(VM.zstack_created_at >= since, VM.zstack_created_at <= until)
+            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
             .group_by("day").order_by("day")
         )
     ).all()
@@ -90,7 +111,7 @@ async def list_vms(
         selectinload(VM.host),
         selectinload(VM.volumes).selectinload(Volume.primary_storage),
         selectinload(VM.project),
-    )
+    ).where(_USER_VM)
     if state:
         q = q.where(VM.state == state)
     if search:
@@ -98,6 +119,38 @@ async def list_vms(
     q = q.order_by(VM.zstack_created_at.desc().nulls_last()).offset((page - 1) * per_page).limit(per_page)
     vms = (await db.execute(q)).scalars().all()
     return [_build_vm_out(v) for v in vms]
+
+
+@router.get("/infrastructure", response_model=list[InfraVMOut])
+async def list_infra_vms(
+    search: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    q = (
+        select(VM)
+        .options(selectinload(VM.host), selectinload(VM.project))
+        .where(_INFRA_VM)
+    )
+    if search:
+        q = q.where(VM.name.ilike(f"%{search}%") | VM.private_ip.ilike(f"%{search}%"))
+    q = q.order_by(VM.name)
+    vms = (await db.execute(q)).scalars().all()
+    return [
+        InfraVMOut(
+            id=v.id,
+            name=v.name,
+            state=v.state,
+            host=v.host.name if v.host else None,
+            platform=v.platform,
+            private_ip=v.private_ip,
+            vcpu=v.vcpu_num,
+            vram_gb=round(v.memory_size / GB, 2) if v.memory_size else None,
+            created_at=v.zstack_created_at.isoformat() if v.zstack_created_at else None,
+            project_name=v.project.name if v.project else None,
+            infra_type=_infer_infra_type(v.name, v.appliance_type),
+        )
+        for v in vms
+    ]
 
 
 @router.get("/trend", response_model=list[VMTrendPoint])
@@ -137,7 +190,7 @@ async def vms_created_in_range(
                 selectinload(VM.volumes).selectinload(Volume.primary_storage),
                 selectinload(VM.project),
             )
-            .where(VM.zstack_created_at >= since, VM.zstack_created_at <= until_inclusive)
+            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until_inclusive)
             .order_by(VM.zstack_created_at.desc())
         )
     ).scalars().all()
@@ -160,7 +213,7 @@ async def compute_trend(
                 func.sum(VM.vcpu_num).label("vcpu"),
                 func.sum(VM.memory_size).label("mem"),
             )
-            .where(VM.zstack_created_at >= since, VM.zstack_created_at <= until)
+            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
             .group_by("day").order_by("day")
         )
     ).all()

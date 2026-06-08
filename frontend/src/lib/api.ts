@@ -162,6 +162,20 @@ export interface VM {
   data_volumes: VolumeInfo[]
 }
 
+export interface InfraVM {
+  id: string
+  name: string
+  state: VMState
+  host: string | null
+  platform: string | null
+  private_ip: string | null
+  vcpu: number | null
+  vram_gb: number | null
+  created_at: string | null
+  project_name: string | null
+  infra_type: string
+}
+
 export interface ProjectQuota {
   vm_num: number | null
   vcpu_num: number | null
@@ -538,6 +552,15 @@ export async function fetchVMs(): Promise<VM[]> {
     return res.data
   } catch {
     return MOCK_VMS
+  }
+}
+
+export async function fetchInfraVMs(): Promise<InfraVM[]> {
+  try {
+    const res = await apiClient.get<InfraVM[]>('/vms/infrastructure')
+    return res.data
+  } catch {
+    return []
   }
 }
 

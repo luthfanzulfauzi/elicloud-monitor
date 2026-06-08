@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
-import { fetchVMs, fetchResourceGroups, type VM, type VolumeInfo } from '@/lib/api'
+import { fetchVMs, fetchResourceGroups, fetchInfraVMs, type VM, type VolumeInfo } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -126,6 +126,20 @@ function DataVolumesCell({ volumes }: { volumes: VolumeInfo[] }) {
   )
 }
 
+function InfraTypeBadge({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    vRouter: 'bg-violet-50 text-violet-700',
+    LB: 'bg-amber-50 text-amber-700',
+    Replication: 'bg-cyan-50 text-cyan-700',
+  }
+  const cls = styles[type] ?? 'bg-slate-100 text-slate-600'
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>
+      {type}
+    </span>
+  )
+}
+
 function Skeleton({ className }: { className?: string }) {
   return <div className={cn('skeleton', className)} />
 }
@@ -145,9 +159,12 @@ export default function VMs() {
   const [rgFilter, setRgFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [infraPage, setInfraPage] = useState(1)
+  const [infraSearch, setInfraSearch] = useState('')
 
   const { data: vms, isLoading } = useQuery({ queryKey: ['vms'], queryFn: fetchVMs })
   const { data: resourceGroups = [] } = useQuery({ queryKey: ['resource-groups'], queryFn: fetchResourceGroups })
+  const { data: infraVMs = [], isLoading: infraLoading } = useQuery({ queryKey: ['infra-vms'], queryFn: fetchInfraVMs })
 
   const hostOptions = useMemo(
     () => [...new Set((vms ?? []).map((v) => v.host).filter(Boolean) as string[])].sort(),
@@ -217,6 +234,20 @@ export default function VMs() {
   function handleFilterChange(setter: (v: string) => void) {
     return (v: string) => { setter(v); resetPage() }
   }
+
+  const INFRA_PAGE_SIZE = 5
+  const filteredInfra = useMemo(
+    () => infraSearch
+      ? infraVMs.filter((v) =>
+          v.name.toLowerCase().includes(infraSearch.toLowerCase()) ||
+          (v.private_ip ?? '').includes(infraSearch) ||
+          v.infra_type.toLowerCase().includes(infraSearch.toLowerCase()),
+        )
+      : infraVMs,
+    [infraVMs, infraSearch],
+  )
+  const infraCurrentPage = Math.min(infraPage, Math.max(1, Math.ceil(filteredInfra.length / INFRA_PAGE_SIZE)))
+  const infraPaginated = filteredInfra.slice((infraCurrentPage - 1) * INFRA_PAGE_SIZE, infraCurrentPage * INFRA_PAGE_SIZE)
 
   return (
     <div className="space-y-4">
@@ -360,6 +391,91 @@ export default function VMs() {
           )}
         </CardContent>
       </Card>
+
+      {/* Infrastructure VMs */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">Infrastructure VMs</h2>
+            <p className="text-[10px] text-slate-400">System-managed appliances (vRouter, LB, etc.) — excluded from totals</p>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Search</span>
+            <input
+              type="text"
+              value={infraSearch}
+              onChange={(e) => { setInfraSearch(e.target.value); setInfraPage(1) }}
+              placeholder="name, IP, type…"
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-500 placeholder:text-slate-300 outline-none hover:border-slate-300"
+            />
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-0">
+            {infraLoading ? (
+              <div className="space-y-2 p-4">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/80">
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Name</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">State</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Host</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">OS</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Private IP</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Owner</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">vCPU</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">vRAM (GB)</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Created At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {infraPaginated.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-400">
+                            {infraVMs.length === 0 ? 'No infrastructure VMs found.' : 'No results match the search.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        infraPaginated.map((vm) => (
+                          <tr key={vm.id} className="transition-colors hover:bg-slate-50/60">
+                            <td className="px-4 py-2.5 font-medium text-slate-800">{vm.name}</td>
+                            <td className="px-4 py-2.5">
+                              <InfraTypeBadge type={vm.infra_type} />
+                            </td>
+                            <td className="px-4 py-2.5"><VMStateBadge state={vm.state} /></td>
+                            <td className="px-4 py-2.5 text-slate-600">{vm.host ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-slate-600">{vm.platform ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 font-mono text-slate-600">{vm.private_ip ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-slate-600">{vm.project_name ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-slate-700">{vm.vcpu ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-slate-700">{vm.vram_gb ?? <span className="text-slate-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-slate-500">{vm.created_at ? formatDate(vm.created_at) : <span className="text-slate-300">—</span>}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <PaginationBar
+                  total={filteredInfra.length}
+                  page={infraCurrentPage}
+                  pageSize={INFRA_PAGE_SIZE}
+                  onPageChange={setInfraPage}
+                  onPageSizeChange={() => {}}
+                  pageSizeOptions={[]}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

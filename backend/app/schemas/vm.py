@@ -28,6 +28,20 @@ class VMOut(BaseModel):
     data_volumes: list[VolumeInfo]
 
 
+class InfraVMOut(BaseModel):
+    id: UUID
+    name: str
+    state: str | None
+    host: str | None
+    platform: str | None
+    private_ip: str | None
+    vcpu: int | None
+    vram_gb: float | None
+    created_at: str | None
+    project_name: str | None
+    infra_type: str
+
+
 class VMTrendPoint(BaseModel):
     date: str
     count: int
