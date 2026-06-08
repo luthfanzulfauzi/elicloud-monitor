@@ -1,12 +1,13 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from .config import settings
-from .database import engine, Base, get_db
+from .database import engine, get_db
 from .scheduler import scheduler, setup_scheduler
 from .security import get_current_user, hash_password
 from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router
@@ -40,14 +41,21 @@ async def _seed_admin():
         )
 
 
+def _alembic_upgrade() -> None:
+    """Run alembic upgrade head in a thread (env.py uses asyncio.run, can't run in async context)."""
+    import os
+    from alembic.config import Config
+    from alembic import command
+
+    ini_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+    cfg = Config(os.path.abspath(ini_path))
+    command.upgrade(cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(text("ALTER TABLE volumes ADD COLUMN IF NOT EXISTS install_path VARCHAR;"))
-        await conn.execute(text("ALTER TABLE vms ADD COLUMN IF NOT EXISTS vm_type VARCHAR;"))
-        await conn.execute(text("ALTER TABLE vms ADD COLUMN IF NOT EXISTS appliance_type VARCHAR;"))
-    log.info("Database tables ready")
+    await asyncio.to_thread(_alembic_upgrade)
+    log.info("Database migrations applied")
 
     await _seed_admin()
 
