@@ -28,7 +28,7 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
     total_avail = sum(s.capacity_avail or 0 for s in storages)
     total_used = total_cap - total_avail
 
-    hosts = (await db.execute(select(Host))).scalars().all()
+    hosts = (await db.execute(select(Host).where(Host.state == "Enabled"))).scalars().all()
     total_cpu_alloc = sum(h.cpu_allocated or 0 for h in hosts)
     total_cpu_total = sum(h.cpu_total or 0 for h in hosts)
     total_mem_alloc = sum(h.memory_allocated or 0 for h in hosts)
