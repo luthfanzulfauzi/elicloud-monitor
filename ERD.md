@@ -1,8 +1,8 @@
 # Entity Relationship Diagram (ERD)
 ## EliCloud Monitor
 
-**Version:** 1.1  
-**Date:** 2026-05-29  
+**Version:** 1.2  
+**Date:** 2026-06-08  
 
 ---
 
@@ -91,6 +91,8 @@ VM {
     memory_size     BIGINT                        -- Bytes
     platform        VARCHAR                       -- Linux, Windows, etc.
     image_name      VARCHAR
+    vm_type         VARCHAR                       -- UserVm | ApplianceVm (null = UserVm)
+    appliance_type  VARCHAR                       -- VirtualRouter | LoadBalancer | etc. (ApplianceVm only)
     zstack_created_at TIMESTAMP                   -- Original creation time from ZStack
     created_at      TIMESTAMP
     updated_at      TIMESTAMP
@@ -349,6 +351,8 @@ StorageNode     ||--o{ DiskHealthRecord     : "has disk records"
 
 - All `zstack_uuid` fields map to ZStack's internal UUIDs — used for sync/idempotent upserts
 - `VM.zstack_created_at` preserves original creation timestamp from ZStack for audit/reporting
+- `VM.vm_type` distinguishes ZStack-internal appliance VMs (`ApplianceVm`: vRouters, LBs) from tenant VMs (`UserVm`). Null is treated as `UserVm` for backwards compatibility. All user-facing counts and lists filter to `UserVm` (or null) only
+- `VM.appliance_type` further classifies ApplianceVm instances (e.g. `VirtualRouter`, `LoadBalancer`)
 - `SnapshotHost` and `SnapshotStorage` are append-only tables — never updated, only inserted
 - `CollectionLog` records every sync run for traceability
 - `ResourceGroup` is application-managed (not synced from ZStack) — full CRUD allowed in app DB

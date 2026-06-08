@@ -1,8 +1,8 @@
 # Functional Requirements Document (FRD)
 ## EliCloud Monitor
 
-**Version:** 1.1  
-**Date:** 2026-05-29  
+**Version:** 1.2  
+**Date:** 2026-06-08  
 
 ---
 
@@ -87,6 +87,7 @@ EliCloud Monitor consists of three layers:
 | FR-04.11 | System shall support search and filter by: name, state, project, tag, host, IP |
 | FR-04.12 | System shall support sorting by all displayed columns |
 | FR-04.13 | System shall support pagination for large VM lists |
+| FR-04.14 | System shall distinguish ZStack-internal appliance VMs (ApplianceVm: vRouters, Load Balancers) from tenant VMs (UserVm) and display them in a separate "Infrastructure VMs" section; appliance VMs shall be excluded from all running/stopped/total VM counts and provisioning trend calculations |
 
 ---
 

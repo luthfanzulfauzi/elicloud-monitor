@@ -103,7 +103,7 @@ Refer to `FRS.md` for the full directory structure and API specification.
 
 ---
 
-## Implementation Status (as of 2026-05-29)
+## Implementation Status (as of 2026-06-08)
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -114,7 +114,12 @@ Refer to `FRS.md` for the full directory structure and API specification.
 | User authentication (login, JWT, protected routes, role gating) | ✅ Done | Phase 2.5 — Login page, ProtectedRoute, JWT Bearer, `/auth/login` + `/auth/me`, seed admin, `useCurrentUser` + `usePermission` hooks, sidebar + page gating; `last_active_at` tracked on every `/auth/me` call; session status (Online/Idle/Offline) shown in Users page |
 | VM → Project association sync | ✅ Done | ZQL `query accountresourceref` → `fetch_vm_owner_refs()` in `zstack_client.py`; 97% VM coverage (36 admin-owned VMs have `project_id=null`) |
 | Disk Health Monitoring (smartctl SCP collector + DiskHealth page) | ✅ Done | StorageNode registry, `smartctl_service.py`, `/disk-health` + `/storage-nodes` routers, `DiskHealth.tsx` page |
-| Alembic migrations | ❌ Pending | `alembic/versions/` is empty — DB uses `create_all()` on startup; new columns require manual `ALTER TABLE` |
+| ApplianceVm / UserVm separation | ✅ Done | `vm_type` + `appliance_type` columns on `vms` table; all user-facing VM counts/lists filter to `UserVm` only; `GET /vms/infrastructure` returns ApplianceVm (vRouter, LB, etc.) |
+| Infrastructure VMs section (VMs page) | ✅ Done | Separate collapsible table below user VM list; 5-item pagination; Type badge (vRouter / LB / Replication / Appliance); excluded from all running/stopped/total counts |
+| Stale VM cleanup on sync | ✅ Done | `sync_service.py` deletes DB records whose `zstack_uuid` no longer appears in ZStack live data; FK-safe (Tags deleted, Volumes nullified first) |
+| Dashboard accuracy fixes | ✅ Done | Running/stopped counts exclude ApplianceVm; CPU/Memory capacity totals exclude Disabled hosts |
+| Date display UTC fix | ✅ Done | `formatDate()` in `utils.ts` renders with `timeZone: 'UTC'` to prevent WIB (+7) date-shift for ZStack timestamps |
+| Alembic migrations | ✅ Done | `alembic.ini` + `alembic/env.py` (async-compatible); baseline migration `68ea7ce5bae9`; `main.py` runs `alembic upgrade head` on startup via `asyncio.to_thread` — no more `create_all()` or manual `ALTER TABLE` |
 | `/reports` backend router (CSV/PDF export) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
 | Deployment docs | ❌ Pending | Phase 4 |
 

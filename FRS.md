@@ -1,8 +1,8 @@
 # Functional Requirements Specification (FRS)
 ## EliCloud Monitor
 
-**Version:** 1.1  
-**Date:** 2026-05-29  
+**Version:** 1.2  
+**Date:** 2026-06-08  
 
 ---
 
@@ -38,8 +38,13 @@ elicloudmonitor/
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── alembic.ini               # Alembic config; script_location = alembic
+│   ├── alembic/
+│   │   ├── env.py                # Async migration runner (asyncio.run + create_async_engine)
+│   │   ├── script.py.mako        # Migration template
+│   │   └── versions/             # Versioned migration files
 │   ├── app/
-│   │   ├── main.py               # FastAPI app entry; _seed_admin() on startup
+│   │   ├── main.py               # FastAPI app entry; runs alembic upgrade head on startup; _seed_admin()
 │   │   ├── config.py             # Settings from env (incl. ADMIN_DEFAULT_EMAIL/PASSWORD)
 │   │   ├── database.py           # DB session setup
 │   │   ├── security.py           # hash_password, verify_password, create_access_token, get_current_user
@@ -152,10 +157,11 @@ elicloudmonitor/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/vms` | List VMs (pagination, filter, sort) |
+| GET | `/vms` | List user VMs only (UserVm type or null; excludes ApplianceVm) |
+| GET | `/vms/infrastructure` | List infrastructure VMs (ApplianceVm — vRouter, LB, etc.) with `infra_type` label |
 | GET | `/vms/{id}` | Single VM detail with volumes, tags, EIP |
-| GET | `/vms/created-by-period` | VM creation count grouped by period |
-| GET | `/vms/compute-trend` | Compute provisioned per day — `{date, vcpu, ram_gb}[]` (query: `?start_date=&end_date=`) |
+| GET | `/vms/created-by-period` | VM creation count grouped by period (UserVm only) |
+| GET | `/vms/compute-trend` | Compute provisioned per day — `{date, vcpu, ram_gb}[]` (UserVm only; query: `?start_date=&end_date=`) |
 
 Query params for `/vms`:
 - `page`, `per_page` — pagination
@@ -313,6 +319,11 @@ Models follow the ERD. Key implementation notes:
 - `zstack_uuid` columns have `unique=True, index=True` for fast upsert lookups
 - `SnapshotHost` and `SnapshotStorage` have `index=True` on `snapshot_at` for time-series queries
 - `VM.zstack_created_at` stored as `TIMESTAMP WITH TIME ZONE`
+- `VM.vm_type` (`VARCHAR`, nullable) — `'UserVm'` or `'ApplianceVm'`; null is treated as `UserVm`
+- `VM.appliance_type` (`VARCHAR`, nullable) — filled only for ApplianceVm rows (e.g. `'VirtualRouter'`, `'LoadBalancer'`)
+- All user-facing queries (list, count, trend, compute) apply `WHERE vm_type = 'UserVm' OR vm_type IS NULL`
+- `GET /vms/infrastructure` returns only `ApplianceVm` rows with a computed `infra_type` label
+- DB schema changes are managed via Alembic (`alembic upgrade head` runs on container startup)
 
 ---
 

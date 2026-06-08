@@ -262,13 +262,15 @@ Ceph pools expand into sub-rows showing each underlying pool. Below: **Virtual C
 
 ### Virtual Machines (`/vms`)
 
-Full VM inventory — up to 2,000 VMs loaded with client-side search and filtering.
+Full VM inventory — up to 2,000 VMs loaded with client-side search and filtering. The page has two sections:
+
+#### User VMs
 
 | Column | Description |
 |--------|-------------|
 | Name | VM display name |
 | State | Running / Stopped / etc. |
-| Project | ZStack project (may be N/A — see known limitation) |
+| Project | ZStack project (may be N/A — admin-owned VMs) |
 | Host | Hypervisor placement |
 | Private IP | Internal network address |
 | EIP | Elastic (public) IP if assigned |
@@ -277,6 +279,24 @@ Full VM inventory — up to 2,000 VMs loaded with client-side search and filteri
 | Created At | Original ZStack creation timestamp |
 
 Search bar filters across name and IP. State/project dropdowns narrow results. **Export CSV** downloads the visible rows.
+
+#### Infrastructure VMs
+
+ZStack-internal appliance VMs (vRouters, Load Balancers, etc.) displayed in a separate section below. These are **not counted** in running/stopped/total VM statistics.
+
+| Column | Description |
+|--------|-------------|
+| Type | Badge: vRouter (violet) / LB (amber) / Replication (cyan) / Appliance (slate) |
+| Name | Appliance VM name |
+| State | Current state |
+| Host | Hypervisor placement |
+| OS | Platform |
+| Private IP | Internal IP |
+| Owner / Project | Associated project if any |
+| vCPU / vRAM | Compute allocation |
+| Created At | Creation timestamp |
+
+Default pagination: 5 items per page. Search across name and IP.
 
 ---
 
@@ -606,8 +626,13 @@ elicloudmonitor/
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── alembic.ini              # Alembic config
+│   ├── alembic/
+│   │   ├── env.py               # Async-compatible migration runner
+│   │   ├── script.py.mako       # Migration file template
+│   │   └── versions/            # Migration files (timestamped)
 │   └── app/
-│       ├── main.py              # App entry, startup hooks, router wiring
+│       ├── main.py              # App entry, startup hooks, router wiring (runs alembic upgrade head)
 │       ├── config.py            # All settings from env vars
 │       ├── database.py          # Async SQLAlchemy engine + session
 │       ├── security.py          # JWT, bcrypt, get_current_user dependency
@@ -729,7 +754,8 @@ All endpoints except `POST /auth/login` require `Authorization: Bearer <token>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/vms` | List all VMs |
+| GET | `/vms` | List all user VMs (UserVm type only) |
+| GET | `/vms/infrastructure` | List infrastructure / appliance VMs (ApplianceVm type — vRouter, LB, etc.) |
 | GET | `/vms/trend` | VM state trend over time |
 | GET | `/vms/created-by-period` | VM creation count grouped by period |
 | GET | `/vms/created-in-range` | VMs created in a date range (`?start=&end=`) |
@@ -879,7 +905,7 @@ All API responses are served from the **local PostgreSQL database** — not live
 2. **All CRUD in this app's own database only.** Resource Groups, StorageNodes, AppUsers, CollectionLogs — the only tables this app writes to.
 3. **VM–project association resolved via ZQL, not REST.** ZStack's standard REST API (`VmInstanceInventory`) does not expose account/project ownership. The app uses ZQL (`GET /v1/zql?zql=query accountresourceref ...`) to fetch ownership data from ZStack's internal `AccountResourceRefVO` table. Coverage: ~97% of VMs. The remaining ~3% are admin-owned VMs with no IAM2 project. See `zql_flow.md` for details.
 4. **SSH keys must be mounted into the backend container.** Place keys in `./ssh_keys/` and reference them as `/app/ssh_keys/<filename>` in the StorageNode config.
-5. **Alembic migrations are pending.** DB schema is created via `create_all()` on startup. For new columns added to existing tables, apply `ALTER TABLE` manually — see deployment steps in each feature's release notes.
+5. **ApplianceVm types are stored but excluded from user-facing counts.** ZStack-internal VMs (vRouters, Load Balancers, etc.) are synced and stored with `vm_type='ApplianceVm'`. They appear in the dedicated Infrastructure VMs section on the VMs page and are excluded from all running/stopped/total VM statistics and dashboard counts.
 
 ---
 
