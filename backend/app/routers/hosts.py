@@ -2,7 +2,7 @@ import uuid as uuid_mod
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, cast, Date
+from sqlalchemy import select, func, cast, Date, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
@@ -12,6 +12,8 @@ from ..schemas.host import HostListItem, HostTrendPoint
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 
 GB = 1024 ** 3
+
+_USER_VM = or_(VM.vm_type == "UserVm", VM.vm_type.is_(None))
 
 
 @router.get("", response_model=list[HostListItem])
@@ -23,7 +25,7 @@ async def list_hosts(state: str | None = Query(None), db: AsyncSession = Depends
 
     result = []
     for h in hosts:
-        vm_count = (await db.execute(select(func.count(VM.id)).where(VM.host_id == h.id))).scalar_one()
+        vm_count = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.host_id == h.id))).scalar_one()
         cpu_oc = round(h.cpu_allocated / h.cpu_total, 2) if h.cpu_total and h.cpu_allocated else None
         mem_oc = round(h.memory_allocated / h.memory_total, 2) if h.memory_total and h.memory_allocated else None
         result.append(HostListItem(

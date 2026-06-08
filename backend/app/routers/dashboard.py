@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, cast, Date
+from sqlalchemy import select, func, cast, Date, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
@@ -14,12 +14,14 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 TB = 1024 ** 4
 GB = 1024 ** 3
 
+_USER_VM = or_(VM.vm_type == "UserVm", VM.vm_type.is_(None))
+
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_summary(db: AsyncSession = Depends(get_db)):
     total_hosts = (await db.execute(select(func.count(Host.id)))).scalar_one()
-    running = (await db.execute(select(func.count(VM.id)).where(VM.state == "Running"))).scalar_one()
-    stopped = (await db.execute(select(func.count(VM.id)).where(VM.state == "Stopped"))).scalar_one()
+    running = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.state == "Running"))).scalar_one()
+    stopped = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.state == "Stopped"))).scalar_one()
 
     storages = (await db.execute(select(PrimaryStorage))).scalars().all()
     total_cap = sum(s.capacity_total or 0 for s in storages)
