@@ -89,9 +89,11 @@ async def update_group(group_id: str, body: ResourceGroupUpdate, db: AsyncSessio
         rg.description = body.description
     if body.project_ids is not None:
         await db.execute(delete(ResourceGroupProject).where(ResourceGroupProject.resource_group_id == rg.id))
+        # Expire the stale in-memory collection after the bulk Core delete,
+        # otherwise db.commit() tries to reconcile deleted ORM objects and raises.
+        db.expire(rg, ['project_memberships'])
         for pid in body.project_ids:
             db.add(ResourceGroupProject(resource_group_id=rg.id, project_id=pid))
-    db.add(rg)
     await db.commit()
     await db.refresh(rg, ["project_memberships"])
     return await _enrich(rg, db)

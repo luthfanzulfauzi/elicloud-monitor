@@ -268,7 +268,7 @@ export default function Reports() {
                         try {
                           const d = await buildExecutiveReportData()
                           if (fmt === 'pdf') downloadExecutivePDF(d)
-                          else if (fmt === 'xlsx') downloadExecutiveXLSX(d)
+                          else if (fmt === 'xlsx') await downloadExecutiveXLSX(d)
                           else await downloadExecutiveDOCX(d)
                         } finally { setGeneratingExec(null) }
                       }}

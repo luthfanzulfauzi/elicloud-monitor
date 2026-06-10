@@ -56,26 +56,33 @@ function DiskCell({ hostId, diskSummary }: { hostId: string; diskSummary: HostDi
   })()
 
   const maxPct = summary.max_use_pct != null ? Math.round(summary.max_use_pct) : null
-  const showMax = maxPct != null && summary.max_mountpoint !== '/' && maxPct > pct
+  const maxMount = summary.max_mountpoint
+  const showMax = maxPct != null && maxMount != null && maxMount !== '/'
+  const maxColorClass = maxPct != null ? (maxPct >= 90 ? 'text-red-600' : maxPct >= 75 ? 'text-amber-600' : 'text-emerald-600') : ''
+  const maxBarColor  = maxPct != null ? (maxPct >= 90 ? 'bg-red-500'  : maxPct >= 75 ? 'bg-amber-500'  : 'bg-emerald-500') : ''
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-1">
+      {/* Root / utilization */}
       <div className="flex items-center gap-1.5">
-        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full ${barColor}`}
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
+        <span className="text-[10px] text-slate-400 w-9 shrink-0">/</span>
+        <div className="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
         <span className={`text-xs font-semibold ${colorClass}`}>{pct}%</span>
         {isStale && ageLabel && (
           <span className="text-[9px] text-slate-400">({ageLabel})</span>
         )}
       </div>
+      {/* Max mount utilization (when different from /) */}
       {showMax && (
-        <span className="text-[9px] text-slate-400">
-          max {maxPct}% on {summary.max_mountpoint}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-400 w-9 shrink-0 truncate">{maxMount}</span>
+          <div className="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div className={`h-full rounded-full ${maxBarColor}`} style={{ width: `${Math.min(maxPct!, 100)}%` }} />
+          </div>
+          <span className={`text-xs font-semibold ${maxColorClass}`}>{maxPct}%</span>
+        </div>
       )}
     </div>
   )
