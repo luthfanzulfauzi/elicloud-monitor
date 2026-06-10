@@ -25,6 +25,14 @@ def setup_scheduler():
         replace_existing=True,
         max_instances=1,
     )
+    scheduler.add_job(
+        _host_disk_scrape_job,
+        "interval",
+        seconds=settings.PROMETHEUS_SCRAPE_INTERVAL_SECONDS,
+        id="host_disk_scrape",
+        replace_existing=True,
+        max_instances=1,
+    )
 
 
 async def _sync_job():
@@ -34,6 +42,18 @@ async def _sync_job():
         log.info("Sync completed: status=%s vms=%s", result.status, result.vms_synced)
     except Exception as exc:
         log.error("Sync job failed: %s", exc)
+
+
+async def _host_disk_scrape_job():
+    from .services.prometheus_service import scrape_and_upsert_all
+
+    log.info("Scheduled Prometheus disk scrape starting")
+    try:
+        async with AsyncSessionLocal() as db:
+            success, errors = await scrape_and_upsert_all(db)
+        log.info("Prometheus disk scrape done: success=%d errors=%d", success, errors)
+    except Exception as exc:
+        log.error("Prometheus disk scrape job failed: %s", exc)
 
 
 async def _disk_health_job():

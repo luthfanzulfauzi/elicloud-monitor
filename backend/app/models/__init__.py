@@ -11,9 +11,10 @@ from .collection_log import CollectionLog
 from .user import AppUser
 from .disk_health import DiskHealthRecord
 from .storage_node import StorageNode
+from .host_disk import HostDiskRecord
 
 __all__ = [
     "Host", "PrimaryStorage", "Project", "VM", "Volume", "Tag", "EIP",
     "ResourceGroup", "ResourceGroupProject", "SnapshotHost", "SnapshotStorage",
-    "CollectionLog", "AppUser", "DiskHealthRecord", "StorageNode",
+    "CollectionLog", "AppUser", "DiskHealthRecord", "StorageNode", "HostDiskRecord",
 ]

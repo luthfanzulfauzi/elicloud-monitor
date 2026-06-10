@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchHosts, fetchHostTrend, type Host } from '@/lib/api'
+import { fetchHosts, fetchHostTrend, fetchHostDiskSummary, type Host, type HostDiskSummaryMap } from '@/lib/api'
 import DataTable, { type Column } from '@/components/tables/DataTable'
 import HostTrendChart from '@/components/charts/HostTrendChart'
 import { Badge } from '@/components/ui/badge'
@@ -21,82 +21,6 @@ function Skeleton({ className }: { className?: string }) {
 
 type HostRow = Host & Record<string, unknown>
 
-const columns: Column<HostRow>[] = [
-  { key: 'name', header: 'Name', sortable: true },
-  { key: 'management_ip', header: 'Management IP', sortable: true },
-  {
-    key: 'state',
-    header: 'State',
-    sortable: true,
-    render: (row) => (
-      <Badge variant={row.state === 'Enabled' ? 'success' : 'danger'}>{String(row.state)}</Badge>
-    ),
-  },
-  {
-    key: 'vcpu_allocated',
-    header: 'CPU Allocated / Total',
-    sortable: true,
-    render: (row) => (
-      <span className="text-slate-700">
-        {String(row.vcpu_allocated)} / {String(row.vcpu_total)} vCPU
-      </span>
-    ),
-  },
-  {
-    key: 'memory_allocated_gb',
-    header: 'Memory Alloc. / Total',
-    sortable: true,
-    render: (row) => (
-      <span className="text-slate-700">
-        {String(row.memory_allocated_gb)} / {String(row.memory_total_gb)} GB
-      </span>
-    ),
-  },
-  { key: 'vm_count', header: 'VM Count', sortable: true },
-  {
-    key: '_cpu_pct',
-    header: 'CPU Overcommit %',
-    sortable: false,
-    render: (row) => {
-      const pct = calcPercent(row.vcpu_allocated as number, row.vcpu_total as number)
-      return (
-        <span
-          className={
-            pct >= 90
-              ? 'font-semibold text-red-600'
-              : pct >= 70
-              ? 'font-semibold text-amber-600'
-              : 'font-semibold text-emerald-600'
-          }
-        >
-          {pct}%
-        </span>
-      )
-    },
-  },
-  {
-    key: '_mem_pct',
-    header: 'Mem Overcommit %',
-    sortable: false,
-    render: (row) => {
-      const pct = calcPercent(row.memory_allocated_gb as number, row.memory_total_gb as number)
-      return (
-        <span
-          className={
-            pct >= 90
-              ? 'font-semibold text-red-600'
-              : pct >= 70
-              ? 'font-semibold text-amber-600'
-              : 'font-semibold text-emerald-600'
-          }
-        >
-          {pct}%
-        </span>
-      )
-    },
-  },
-]
-
 type DatePreset = '7d' | '30d' | '90d'
 
 function getDateRange(preset: DatePreset): { start: string; end: string } {
@@ -111,6 +35,52 @@ function getDateRange(preset: DatePreset): { start: string; end: string } {
   }
 }
 
+function DiskCell({ hostId, diskSummary }: { hostId: string; diskSummary: HostDiskSummaryMap | undefined }) {
+  const summary = diskSummary?.[hostId] ?? null
+  if (!summary || summary.root_use_pct == null) {
+    return <span className="text-slate-400 text-xs">—</span>
+  }
+
+  const pct = Math.round(summary.root_use_pct)
+  const colorClass = pct >= 90 ? 'text-red-600' : pct >= 75 ? 'text-amber-600' : 'text-emerald-600'
+  const barColor = pct >= 90 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
+
+  const isStale = summary.collected_at
+    ? Date.now() - new Date(summary.collected_at).getTime() > 15 * 60 * 1000
+    : false
+
+  const ageLabel = (() => {
+    if (!isStale || !summary.collected_at) return null
+    const ageMin = Math.round((Date.now() - new Date(summary.collected_at).getTime()) / 60000)
+    return ageMin >= 60 ? `${Math.round(ageMin / 60)}h ago` : `${ageMin}m ago`
+  })()
+
+  const maxPct = summary.max_use_pct != null ? Math.round(summary.max_use_pct) : null
+  const showMax = maxPct != null && summary.max_mountpoint !== '/' && maxPct > pct
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full ${barColor}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+        <span className={`text-xs font-semibold ${colorClass}`}>{pct}%</span>
+        {isStale && ageLabel && (
+          <span className="text-[9px] text-slate-400">({ageLabel})</span>
+        )}
+      </div>
+      {showMax && (
+        <span className="text-[9px] text-slate-400">
+          max {maxPct}% on {summary.max_mountpoint}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function Hosts() {
   const [stateFilter, setStateFilter] = useState<string>('all')
   const [trendHostId, setTrendHostId] = useState<string>('all')
@@ -123,6 +93,13 @@ export default function Hosts() {
     queryFn: fetchHosts,
   })
 
+  const { data: diskSummary } = useQuery<HostDiskSummaryMap>({
+    queryKey: ['host-disk-summary'],
+    queryFn: fetchHostDiskSummary,
+    staleTime: 60_000,
+    refetchInterval: 300_000,
+  })
+
   const { data: hostTrend, isLoading: trendLoading } = useQuery({
     queryKey: ['host-trend', trendHostId, trendPreset],
     queryFn: () => {
@@ -130,6 +107,88 @@ export default function Hosts() {
       return fetchHostTrend(start, end, trendHostId === 'all' ? undefined : trendHostId)
     },
   })
+
+  const columns = useMemo<Column<HostRow>[]>(() => [
+    { key: 'name', header: 'Name', sortable: true },
+    { key: 'management_ip', header: 'Management IP', sortable: true },
+    {
+      key: 'state',
+      header: 'State',
+      sortable: true,
+      render: (row) => (
+        <Badge variant={row.state === 'Enabled' ? 'success' : 'danger'}>{String(row.state)}</Badge>
+      ),
+    },
+    {
+      key: 'vcpu_allocated',
+      header: 'CPU Allocated / Total',
+      sortable: true,
+      render: (row) => (
+        <span className="text-slate-700">
+          {String(row.vcpu_allocated)} / {String(row.vcpu_total)} vCPU
+        </span>
+      ),
+    },
+    {
+      key: 'memory_allocated_gb',
+      header: 'Memory Alloc. / Total',
+      sortable: true,
+      render: (row) => (
+        <span className="text-slate-700">
+          {String(row.memory_allocated_gb)} / {String(row.memory_total_gb)} GB
+        </span>
+      ),
+    },
+    { key: 'vm_count', header: 'VM Count', sortable: true },
+    {
+      key: '_cpu_pct',
+      header: 'CPU Overcommit %',
+      sortable: false,
+      render: (row) => {
+        const pct = calcPercent(row.vcpu_allocated as number, row.vcpu_total as number)
+        return (
+          <span
+            className={
+              pct >= 90
+                ? 'font-semibold text-red-600'
+                : pct >= 70
+                ? 'font-semibold text-amber-600'
+                : 'font-semibold text-emerald-600'
+            }
+          >
+            {pct}%
+          </span>
+        )
+      },
+    },
+    {
+      key: '_mem_pct',
+      header: 'Mem Overcommit %',
+      sortable: false,
+      render: (row) => {
+        const pct = calcPercent(row.memory_allocated_gb as number, row.memory_total_gb as number)
+        return (
+          <span
+            className={
+              pct >= 90
+                ? 'font-semibold text-red-600'
+                : pct >= 70
+                ? 'font-semibold text-amber-600'
+                : 'font-semibold text-emerald-600'
+            }
+          >
+            {pct}%
+          </span>
+        )
+      },
+    },
+    {
+      key: '_disk',
+      header: '/ Disk',
+      sortable: false,
+      render: (row) => <DiskCell hostId={row.id as string} diskSummary={diskSummary} />,
+    },
+  ], [diskSummary])
 
   const filtered = (hosts ?? []).filter(
     (h) => stateFilter === 'all' || h.state === stateFilter,
@@ -186,7 +245,6 @@ export default function Hosts() {
                 rowKey="id"
                 emptyMessage="No hosts match the current filter."
               />
-              {/* Pagination bar */}
               <PaginationBar
                 total={filtered.length}
                 page={currentPage}
@@ -210,7 +268,6 @@ export default function Hosts() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Host selector */}
               <Select value={trendHostId} onValueChange={setTrendHostId}>
                 <SelectTrigger className="h-8 w-44 text-xs">
                   <SelectValue />
@@ -224,7 +281,6 @@ export default function Hosts() {
                   ))}
                 </SelectContent>
               </Select>
-              {/* Date range */}
               <div className="flex rounded-md border border-slate-200 overflow-hidden">
                 {(['7d', '30d', '90d'] as DatePreset[]).map((p) => (
                   <button

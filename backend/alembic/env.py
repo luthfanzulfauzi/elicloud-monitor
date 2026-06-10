@@ -22,6 +22,7 @@ from app.models.user import AppUser  # noqa: E402, F401
 from app.models.disk_health import DiskHealthRecord  # noqa: E402, F401
 from app.models.storage_node import StorageNode  # noqa: E402, F401
 from app.models.resource_group import ResourceGroup  # noqa: E402, F401
+from app.models.host_disk import HostDiskRecord  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

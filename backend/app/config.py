@@ -26,5 +26,8 @@ class Settings(BaseSettings):
     SMARTCTL_COLLECT_INTERVAL_SECONDS: int = 3600
     SMARTCTL_KNOWN_HOSTS: str = ""
 
+    PROMETHEUS_NODE_EXPORTER_PORT: int = 9100
+    PROMETHEUS_SCRAPE_INTERVAL_SECONDS: int = 300
+
 
 settings = Settings()

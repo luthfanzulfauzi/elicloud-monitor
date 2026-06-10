@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileText, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Download, FileText, ChevronDown, ChevronRight, ChevronLeft, BarChart3, Loader2 } from 'lucide-react'
 import {
   fetchVMTrend,
   fetchStorageTrend,
   fetchComputeTrend,
   fetchVMsCreatedInRange,
+  fetchDashboardSummary,
+  fetchHosts,
+  fetchStorage,
   type VMTrendPoint,
   type ProvisioningPoint,
   type ComputePoint,
@@ -20,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
-import { downloadCSV, downloadPDF } from '@/lib/export'
+import { downloadCSV, downloadPDF, downloadExecutivePDF } from '@/lib/export'
 
 type MetricTab = 'vms' | 'storage' | 'compute'
 
@@ -98,9 +101,64 @@ function VMSubTable({ vms }: { vms: VM[] }) {
   )
 }
 
+async function generateExecutiveReport() {
+  const [summary, hosts, storage] = await Promise.all([
+    fetchDashboardSummary(),
+    fetchHosts(),
+    fetchStorage(),
+  ])
+
+  const cpuAllocPct = summary.total_cpu_total > 0
+    ? (summary.total_cpu_allocated / summary.total_cpu_total) * 100 : 0
+  const memAllocPct = summary.total_memory_total_gb > 0
+    ? (summary.total_memory_allocated_gb / summary.total_memory_total_gb) * 100 : 0
+
+  downloadExecutivePDF({
+    generatedAt: new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }),
+    summary: {
+      total_hosts: summary.total_hosts,
+      total_vms: summary.running_vms + summary.stopped_vms,
+      running_vms: summary.running_vms,
+      stopped_vms: summary.stopped_vms,
+      cpu_alloc_pct: cpuAllocPct,
+      mem_alloc_pct: memAllocPct,
+      storage_used_tb: summary.total_storage_used_tb,
+      storage_total_tb: summary.total_storage_tb,
+    },
+    hosts: hosts.map((h) => ({
+      name: h.name,
+      state: h.state,
+      vcpu_allocated: h.vcpu_allocated,
+      vcpu_total: h.vcpu_total,
+      memory_allocated_gb: h.memory_allocated_gb,
+      memory_total_gb: h.memory_total_gb,
+      vm_count: h.vm_count,
+      cpu_overcommit_pct: h.vcpu_total > 0 ? (h.vcpu_allocated / h.vcpu_total) * 100 : 0,
+      mem_overcommit_pct: h.memory_total_gb > 0 ? (h.memory_allocated_gb / h.memory_total_gb) * 100 : 0,
+    })),
+    physicalStorage: storage.map((s) => ({
+      name: s.name,
+      type: s.type,
+      state: s.state,
+      total_tb: s.total_physical_tb,
+      used_tb: s.used_physical_tb,
+      util_pct: s.total_physical_tb > 0 ? (s.used_physical_tb / s.total_physical_tb) * 100 : 0,
+    })),
+    virtualStorage: storage.map((s) => ({
+      name: s.name,
+      type: s.type,
+      state: s.state,
+      total_tb: s.total_tb,
+      used_tb: s.used_tb,
+      util_pct: s.total_tb > 0 ? (s.used_tb / s.total_tb) * 100 : 0,
+    })),
+  })
+}
+
 export default function Reports() {
   const [startDate, setStartDate] = useState(daysAgoStr(30))
   const [endDate, setEndDate] = useState(todayStr())
+  const [generatingExec, setGeneratingExec] = useState(false)
   const [activeTab, setActiveTab] = useState<MetricTab>('vms')
   const [breakdownPage, setBreakdownPage] = useState(1)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
@@ -186,6 +244,53 @@ export default function Reports() {
 
   return (
     <div className="space-y-5">
+      {/* ── Executive Report ── */}
+      <Card className="border-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+        <CardContent className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-sky-400" />
+                <h2 className="text-sm font-semibold">Infrastructure Executive Report</h2>
+              </div>
+              <p className="text-[10px] text-slate-300 max-w-lg">
+                Point-in-time snapshot of the entire private cloud infrastructure. Generates a
+                multi-section PDF with summary KPIs, host utilization table, and storage breakdown.
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-[10px] text-slate-400">
+                <span>· Total hosts, VMs (running / stopped)</span>
+                <span>· CPU &amp; Memory allocation rates</span>
+                <span>· Storage utilization (physical &amp; virtual)</span>
+                <span>· Per-host: vCPU, memory, VM count, overcommit</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                className="gap-2 bg-sky-600 text-white hover:bg-sky-500"
+                disabled={generatingExec}
+                onClick={async () => {
+                  setGeneratingExec(true)
+                  try { await generateExecutiveReport() }
+                  finally { setGeneratingExec(false) }
+                }}
+              >
+                {generatingExec
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+                  : <><FileText className="h-4 w-4" /> Generate PDF</>}
+              </Button>
+              <p className="text-[9px] text-slate-500">Downloads current infrastructure state</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── VM Trend Reports ── */}
+      <div className="flex items-center gap-2 pt-1">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Trend Reports</span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+
       {/* Date Range + Export */}
       <Card>
         <CardContent className="p-5">

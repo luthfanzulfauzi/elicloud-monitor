@@ -317,6 +317,15 @@ export interface StorageNodeUpdate {
   enabled?: boolean
 }
 
+export interface HostDiskSummary {
+  root_use_pct: number | null
+  max_use_pct: number | null
+  max_mountpoint: string | null
+  collected_at: string | null
+}
+
+export type HostDiskSummaryMap = Record<string, HostDiskSummary | null>
+
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 
 export const MOCK_HOSTS: Host[] = [
@@ -782,4 +791,18 @@ export async function updateStorageNode(id: string, data: StorageNodeUpdate): Pr
 
 export async function deleteStorageNode(id: string): Promise<void> {
   await apiClient.delete(`/storage-nodes/${id}`)
+}
+
+export async function fetchHostDiskSummary(): Promise<HostDiskSummaryMap> {
+  try {
+    const res = await apiClient.get<HostDiskSummaryMap>('/hosts/disk-summary')
+    return res.data
+  } catch {
+    return {}
+  }
+}
+
+export async function refreshHostDisk(): Promise<{ success_count: number; error_count: number; message: string }> {
+  const res = await apiClient.post('/hosts/disk-refresh')
+  return res.data
 }
