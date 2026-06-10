@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
-import { downloadCSV, downloadPDF, downloadExecutivePDF } from '@/lib/export'
+import { downloadCSV, downloadPDF, downloadExecutivePDF, downloadExecutiveXLSX, downloadExecutiveDOCX } from '@/lib/export'
 
 type MetricTab = 'vms' | 'storage' | 'compute'
 
@@ -101,19 +101,17 @@ function VMSubTable({ vms }: { vms: VM[] }) {
   )
 }
 
-async function generateExecutiveReport() {
+async function buildExecutiveReportData() {
   const [summary, hosts, storage] = await Promise.all([
     fetchDashboardSummary(),
     fetchHosts(),
     fetchStorage(),
   ])
-
   const cpuAllocPct = summary.total_cpu_total > 0
     ? (summary.total_cpu_allocated / summary.total_cpu_total) * 100 : 0
   const memAllocPct = summary.total_memory_total_gb > 0
     ? (summary.total_memory_allocated_gb / summary.total_memory_total_gb) * 100 : 0
-
-  downloadExecutivePDF({
+  return {
     generatedAt: new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }),
     summary: {
       total_hosts: summary.total_hosts,
@@ -137,28 +135,22 @@ async function generateExecutiveReport() {
       mem_overcommit_pct: h.memory_total_gb > 0 ? (h.memory_allocated_gb / h.memory_total_gb) * 100 : 0,
     })),
     physicalStorage: storage.map((s) => ({
-      name: s.name,
-      type: s.type,
-      state: s.state,
-      total_tb: s.total_physical_tb,
-      used_tb: s.used_physical_tb,
+      name: s.name, type: s.type, state: s.state,
+      total_tb: s.total_physical_tb, used_tb: s.used_physical_tb,
       util_pct: s.total_physical_tb > 0 ? (s.used_physical_tb / s.total_physical_tb) * 100 : 0,
     })),
     virtualStorage: storage.map((s) => ({
-      name: s.name,
-      type: s.type,
-      state: s.state,
-      total_tb: s.total_tb,
-      used_tb: s.used_tb,
+      name: s.name, type: s.type, state: s.state,
+      total_tb: s.total_tb, used_tb: s.used_tb,
       util_pct: s.total_tb > 0 ? (s.used_tb / s.total_tb) * 100 : 0,
     })),
-  })
+  }
 }
 
 export default function Reports() {
   const [startDate, setStartDate] = useState(daysAgoStr(30))
   const [endDate, setEndDate] = useState(todayStr())
-  const [generatingExec, setGeneratingExec] = useState(false)
+  const [generatingExec, setGeneratingExec] = useState<'pdf' | 'xlsx' | 'docx' | null>(null)
   const [activeTab, setActiveTab] = useState<MetricTab>('vms')
   const [breakdownPage, setBreakdownPage] = useState(1)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
@@ -265,19 +257,31 @@ export default function Reports() {
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <Button
-                className="gap-2 bg-sky-600 text-white hover:bg-sky-500"
-                disabled={generatingExec}
-                onClick={async () => {
-                  setGeneratingExec(true)
-                  try { await generateExecutiveReport() }
-                  finally { setGeneratingExec(false) }
-                }}
-              >
-                {generatingExec
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
-                  : <><FileText className="h-4 w-4" /> Generate PDF</>}
-              </Button>
+              <div className="flex items-stretch rounded-md overflow-hidden border border-sky-500">
+                {(['pdf', 'xlsx', 'docx'] as const).map((fmt, i) => (
+                  <div key={fmt} className="flex items-stretch">
+                    {i > 0 && <div className="w-px bg-sky-700" />}
+                    <button
+                      disabled={generatingExec !== null}
+                      onClick={async () => {
+                        setGeneratingExec(fmt)
+                        try {
+                          const d = await buildExecutiveReportData()
+                          if (fmt === 'pdf') downloadExecutivePDF(d)
+                          else if (fmt === 'xlsx') downloadExecutiveXLSX(d)
+                          else await downloadExecutiveDOCX(d)
+                        } finally { setGeneratingExec(null) }
+                      }}
+                      className="flex items-center gap-1.5 bg-sky-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {generatingExec === fmt
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <FileText className="h-3.5 w-3.5" />}
+                      {fmt.toUpperCase()}
+                    </button>
+                  </div>
+                ))}
+              </div>
               <p className="text-[9px] text-slate-500">Downloads current infrastructure state</p>
             </div>
           </div>

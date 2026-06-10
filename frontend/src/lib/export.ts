@@ -1,5 +1,10 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
+import {
+  Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun,
+  WidthType, BorderStyle, ShadingType,
+} from 'docx'
 
 // ── CSV ──────────────────────────────────────────────────────────────────────
 
@@ -347,4 +352,224 @@ export function downloadExecutivePDF(data: ExecutiveReportData) {
 
   const dateStr = data.generatedAt.split(',')[0].replace(/\//g, '-').replace(/ /g, '_')
   doc.save(`executive_report_${dateStr}.pdf`)
+}
+
+// ── Shared blob download helper ───────────────────────────────────────────────
+
+function _blobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// ── Executive XLSX ────────────────────────────────────────────────────────────
+
+export function downloadExecutiveXLSX(data: ExecutiveReportData) {
+  const wb = XLSX.utils.book_new()
+  const fileDate = new Date().toISOString().split('T')[0]
+
+  // Sheet 1 — Summary KPIs
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    ['Infrastructure Executive Report'],
+    [`Generated: ${data.generatedAt}`],
+    [],
+    ['Metric', 'Value'],
+    ['Total Hosts', data.summary.total_hosts],
+    ['Total VMs', data.summary.total_vms],
+    ['Running VMs', data.summary.running_vms],
+    ['Stopped VMs', data.summary.stopped_vms],
+    ['CPU Allocation Rate (%)', parseFloat(data.summary.cpu_alloc_pct.toFixed(1))],
+    ['Memory Allocation Rate (%)', parseFloat(data.summary.mem_alloc_pct.toFixed(1))],
+    ['Storage Used (TB)', data.summary.storage_used_tb],
+    ['Storage Total (TB)', data.summary.storage_total_tb],
+  ])
+  ws1['!cols'] = [{ wch: 30 }, { wch: 20 }]
+  ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary')
+
+  // Sheet 2 — Host Utilization
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['Host Name', 'State', 'vCPU Allocated', 'vCPU Total', 'Mem Alloc (GB)', 'Mem Total (GB)', 'VM Count', 'CPU OC%', 'Mem OC%'],
+    ...data.hosts.map((h) => [
+      h.name, h.state, h.vcpu_allocated, h.vcpu_total,
+      h.memory_allocated_gb, h.memory_total_gb, h.vm_count,
+      parseFloat(h.cpu_overcommit_pct.toFixed(1)),
+      parseFloat(h.mem_overcommit_pct.toFixed(1)),
+    ]),
+  ])
+  ws2['!cols'] = [
+    { wch: 24 }, { wch: 10 }, { wch: 15 }, { wch: 12 },
+    { wch: 15 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+  ]
+  XLSX.utils.book_append_sheet(wb, ws2, 'Host Utilization')
+
+  // Shared storage headers
+  const storageHdr = ['Storage Name', 'Type', 'State', 'Total TB', 'Used TB', 'Utilization %']
+  const storageCols = [{ wch: 26 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }]
+
+  // Sheet 3 — Storage Physical
+  const ws3 = XLSX.utils.aoa_to_sheet([
+    storageHdr,
+    ...data.physicalStorage.map((s) => [
+      s.name, s.type, s.state,
+      parseFloat(s.total_tb.toFixed(2)),
+      parseFloat(s.used_tb.toFixed(2)),
+      parseFloat(s.util_pct.toFixed(1)),
+    ]),
+  ])
+  ws3['!cols'] = storageCols
+  XLSX.utils.book_append_sheet(wb, ws3, 'Storage - Physical')
+
+  // Sheet 4 — Storage Virtual
+  const ws4 = XLSX.utils.aoa_to_sheet([
+    storageHdr,
+    ...data.virtualStorage.map((s) => [
+      s.name, s.type, s.state,
+      parseFloat(s.total_tb.toFixed(2)),
+      parseFloat(s.used_tb.toFixed(2)),
+      parseFloat(s.util_pct.toFixed(1)),
+    ]),
+  ])
+  ws4['!cols'] = storageCols
+  XLSX.utils.book_append_sheet(wb, ws4, 'Storage - Virtual')
+
+  XLSX.writeFile(wb, `executive_report_${fileDate}.xlsx`)
+}
+
+// ── Executive DOCX ────────────────────────────────────────────────────────────
+
+const _BORDER = { style: BorderStyle.SINGLE, size: 1, color: 'CBD5E1' }
+const _CELL_BORDERS = { top: _BORDER, bottom: _BORDER, left: _BORDER, right: _BORDER }
+
+function _docCell(
+  text: string,
+  opts?: { bold?: boolean; fill?: string; color?: string },
+): TableCell {
+  return new TableCell({
+    children: [
+      new Paragraph({
+        children: [
+          new TextRun({ text, bold: opts?.bold ?? false, color: opts?.color ?? '334155', size: 18 }),
+        ],
+      }),
+    ],
+    ...(opts?.fill
+      ? { shading: { type: ShadingType.SOLID, color: opts.fill, fill: opts.fill } }
+      : {}),
+    borders: _CELL_BORDERS,
+    margins: { top: 60, bottom: 60, left: 90, right: 90 },
+  })
+}
+
+function _docHeaderRow(headers: string[]): TableRow {
+  return new TableRow({
+    children: headers.map((h) => _docCell(h, { bold: true, fill: '1E2937', color: 'FFFFFF' })),
+    tableHeader: true,
+  })
+}
+
+function _docDataRow(cells: (string | number)[], alt: boolean): TableRow {
+  return new TableRow({
+    children: cells.map((c) => _docCell(String(c), alt ? { fill: 'F1F5F9' } : undefined)),
+  })
+}
+
+function _docSection(title: string): Paragraph {
+  return new Paragraph({
+    children: [new TextRun({ text: title, bold: true, size: 24, color: '0F172A' })],
+    spacing: { before: 480, after: 160 },
+  })
+}
+
+export async function downloadExecutiveDOCX(data: ExecutiveReportData) {
+  const fileDate = new Date().toISOString().split('T')[0]
+
+  const summaryTable = new Table({
+    width: { size: 50, type: WidthType.PERCENTAGE },
+    rows: [
+      _docHeaderRow(['Metric', 'Value']),
+      ...[
+        ['Total Hosts', String(data.summary.total_hosts)],
+        ['Total VMs', String(data.summary.total_vms)],
+        ['Running VMs', String(data.summary.running_vms)],
+        ['Stopped VMs', String(data.summary.stopped_vms)],
+        ['CPU Allocation Rate', `${data.summary.cpu_alloc_pct.toFixed(1)}%`],
+        ['Memory Allocation Rate', `${data.summary.mem_alloc_pct.toFixed(1)}%`],
+        ['Storage Used', `${data.summary.storage_used_tb} TB`],
+        ['Storage Total', `${data.summary.storage_total_tb} TB`],
+      ].map(([k, v], i) => _docDataRow([k, v], i % 2 === 1)),
+    ],
+  })
+
+  const hostTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      _docHeaderRow(['Host Name', 'State', 'vCPU Alloc / Total', 'Memory Alloc / Total', 'VMs', 'CPU OC%', 'Mem OC%']),
+      ...data.hosts.map((h, i) =>
+        _docDataRow([
+          h.name, h.state,
+          `${h.vcpu_allocated} / ${h.vcpu_total} vCPU`,
+          `${h.memory_allocated_gb} / ${h.memory_total_gb} GB`,
+          h.vm_count,
+          `${h.cpu_overcommit_pct.toFixed(1)}%`,
+          `${h.mem_overcommit_pct.toFixed(1)}%`,
+        ], i % 2 === 1)
+      ),
+    ],
+  })
+
+  const storageHdr = ['Storage Name', 'Type', 'State', 'Total TB', 'Used TB', 'Utilization %']
+
+  const physTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      _docHeaderRow(storageHdr),
+      ...data.physicalStorage.map((s, i) =>
+        _docDataRow([s.name, s.type, s.state, s.total_tb.toFixed(2), s.used_tb.toFixed(2), `${s.util_pct.toFixed(1)}%`], i % 2 === 1)
+      ),
+    ],
+  })
+
+  const virtTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      _docHeaderRow(storageHdr),
+      ...data.virtualStorage.map((s, i) =>
+        _docDataRow([s.name, s.type, s.state, s.total_tb.toFixed(2), s.used_tb.toFixed(2), `${s.util_pct.toFixed(1)}%`], i % 2 === 1)
+      ),
+    ],
+  })
+
+  const doc = new Document({
+    sections: [
+      {
+        children: [
+          new Paragraph({
+            children: [new TextRun({ text: 'Infrastructure Executive Report', bold: true, size: 40, color: '0F172A' })],
+            spacing: { after: 120 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: `EliCloud Monitor  ·  Generated: ${data.generatedAt}`, color: '64748B', size: 18 })],
+            spacing: { after: 480 },
+          }),
+          _docSection('Executive Summary'),
+          summaryTable,
+          _docSection('Host Utilization'),
+          hostTable,
+          _docSection('Storage Utilization — Physical'),
+          physTable,
+          _docSection('Storage Utilization — Virtual (Provisioned)'),
+          virtTable,
+        ],
+      },
+    ],
+  })
+
+  const blob = await Packer.toBlob(doc)
+  _blobDownload(blob, `executive_report_${fileDate}.docx`)
 }
