@@ -44,6 +44,9 @@ Thumbs.db
 # Docker
 *.override.yml
 
+# Query output dumps
+query_output/
+
 # Sensitive / scratch files
 ssh_keys/*
 !ssh_keys/.gitkeep
