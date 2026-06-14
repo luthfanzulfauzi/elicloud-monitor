@@ -1,0 +1,172 @@
+{
+   "blockdevices": [
+      {"name": "sda", "size": "223.5G", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "sda1", "size": "600M", "type": "part", "mountpoint": "/boot/efi"},
+            {"name": "sda2", "size": "1G", "type": "part", "mountpoint": "/boot"},
+            {"name": "sda3", "size": "221.9G", "type": "part", "mountpoint": "/"}
+         ]
+      },
+      {"name": "nvme0n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme0n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-23"},
+            {"name": "nvme0n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme0n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme1n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme1n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-68"},
+            {"name": "nvme1n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme1n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme2n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme2n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-79"},
+            {"name": "nvme2n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme2n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme4n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme4n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-85"},
+            {"name": "nvme4n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme4n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme5n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme5n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-91"},
+            {"name": "nvme5n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme5n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme3n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme3n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-84"},
+            {"name": "nvme3n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme3n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme7n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme7n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-106"},
+            {"name": "nvme7n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme7n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme11n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme11n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-26"},
+            {"name": "nvme11n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme11n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme6n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme6n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-94"},
+            {"name": "nvme6n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme6n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme8n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme8n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-105"},
+            {"name": "nvme8n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme8n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme10n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme10n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-28"},
+            {"name": "nvme10n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme10n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme9n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme9n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-114"},
+            {"name": "nvme9n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme9n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme21n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme21n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-127"},
+            {"name": "nvme21n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme21n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme22n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme22n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-134"},
+            {"name": "nvme22n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme22n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme13n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme13n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-1"},
+            {"name": "nvme13n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme13n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme17n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme17n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-24"},
+            {"name": "nvme17n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme17n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme16n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme16n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-0"},
+            {"name": "nvme16n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme16n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme14n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme14n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-29"},
+            {"name": "nvme14n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme14n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme23n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme23n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-141"},
+            {"name": "nvme23n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme23n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme20n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme20n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-62"},
+            {"name": "nvme20n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme20n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme19n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme19n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-124"},
+            {"name": "nvme19n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme19n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme12n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme12n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-27"},
+            {"name": "nvme12n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme12n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme15n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme15n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-25"},
+            {"name": "nvme15n1p2", "size": "2.9T", "type": "part", "mountpoint": null},
+            {"name": "nvme15n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      }
+   ]
+}

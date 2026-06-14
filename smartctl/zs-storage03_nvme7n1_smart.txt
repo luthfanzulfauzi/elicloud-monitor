@@ -1,5 +1,5 @@
 ===== Device: /dev/nvme7n1 =====
-===== Date: Fri May 29 10:51:32 CST 2026 =====
+===== Date: Sun Jun 14 21:22:41 CST 2026 =====
 
 --- SMART INFO (-a) ---
 smartctl 7.1 2020-04-05 r5049 [x86_64-linux-4.18.0-425.19.2.4.g0fd3a169.el8.x86_64] (local build)
@@ -20,7 +20,7 @@ Namespace 1 Size/Capacity:          3,200,631,791,616 [3.20 TB]
 Namespace 1 Utilization:            3,180,760,317,952 [3.18 TB]
 Namespace 1 Formatted LBA Size:     512
 Namespace 1 IEEE EUI-64:            8ce38e e224cc6701
-Local Time is:                      Fri May 29 10:51:32 2026 CST
+Local Time is:                      Sun Jun 14 21:22:41 2026 CST
 Firmware Updates (0x17):            3 Slots, Slot 1 R/O, no Reset required
 Optional Admin Commands (0x025e):   Format Frmw_DL NS_Mngmt Self_Test MI_Snd/Rec *Other*
 Optional NVM Commands (0x00ff):     Comp Wr_Unc DS_Mngmt Wr_Zero Sav/Sel_Feat Resv Timestmp *Other*
@@ -57,13 +57,13 @@ Temperature:                        34 Celsius
 Available Spare:                    100%
 Available Spare Threshold:          10%
 Percentage Used:                    1%
-Data Units Read:                    65,236,323 [33.4 TB]
-Data Units Written:                 396,495,984 [203 TB]
-Host Read Commands:                 1,984,144,309
-Host Write Commands:                21,825,984,664
-Controller Busy Time:               457,034
+Data Units Read:                    73,541,612 [37.6 TB]
+Data Units Written:                 429,127,947 [219 TB]
+Host Read Commands:                 2,244,003,647
+Host Write Commands:                23,292,675,158
+Controller Busy Time:               496,571
 Power Cycles:                       40
-Power On Hours:                     13,708
+Power On Hours:                     14,102
 Unsafe Shutdowns:                   34
 Media and Data Integrity Errors:    0
 Error Information Log Entries:      54

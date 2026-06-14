@@ -1,0 +1,342 @@
+{
+   "blockdevices": [
+      {"name": "sda", "size": "446.6G", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "sda1", "size": "600M", "type": "part", "mountpoint": "/boot/efi"},
+            {"name": "sda2", "size": "1G", "type": "part", "mountpoint": "/boot"},
+            {"name": "sda3", "size": "445G", "type": "part", "mountpoint": "/"}
+         ]
+      },
+      {"name": "sdb", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpatha", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-lvmlock", "size": "1.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-33e3eecd45ed485a898650feb3bf97e3", "size": "50.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-9b4c062db4c74396a5f8072f72a6f84b", "size": "352.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-5bb4d8b5f51a1520b20de7cfef093af26ce84a02", "size": "34.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-c77135fdf5be4311a66fabfa946dc3ed", "size": "13.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-02279a9d606642879701f9c824437b41", "size": "11G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-2f81bb9b00854d2aab7305ccaf02ad85", "size": "763.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-f77efbdd736248cbabdd7808cb9eab4f", "size": "40.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-4e0268906dfd4f09b730a179939a3231", "size": "944.7G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdc", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathb", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-lvmlock", "size": "256M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-04672784d2694d049224f28278d260ec", "size": "500.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-3ddc6ed6242a433d977fb7485d91f244", "size": "486G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-1c5a2353ce2743ab8aa99a8e2176948c", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-a26bb8fe0a794900a4f59c1eadf8fb64", "size": "879.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25c15433cb804e3986bb5d23a140d9e8", "size": "100G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-afdb710f0c754c5eae3eb9ab1e7c74a7", "size": "724M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-8e6b7c0fbf52421e8d775db269cdb3df", "size": "4.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fef4bac931e64c25a80423632cf266ca", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-4ab7ff8e6b564db9931f1c7b8244c490", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-f2f77a5b4f25404ab4d64dbd44f2d84c", "size": "100.1G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdd", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpatha", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-lvmlock", "size": "1.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-33e3eecd45ed485a898650feb3bf97e3", "size": "50.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-9b4c062db4c74396a5f8072f72a6f84b", "size": "352.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-5bb4d8b5f51a1520b20de7cfef093af26ce84a02", "size": "34.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-c77135fdf5be4311a66fabfa946dc3ed", "size": "13.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-02279a9d606642879701f9c824437b41", "size": "11G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-2f81bb9b00854d2aab7305ccaf02ad85", "size": "763.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-f77efbdd736248cbabdd7808cb9eab4f", "size": "40.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-4e0268906dfd4f09b730a179939a3231", "size": "944.7G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sde", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathb", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-lvmlock", "size": "256M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-04672784d2694d049224f28278d260ec", "size": "500.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-3ddc6ed6242a433d977fb7485d91f244", "size": "486G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-1c5a2353ce2743ab8aa99a8e2176948c", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-a26bb8fe0a794900a4f59c1eadf8fb64", "size": "879.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25c15433cb804e3986bb5d23a140d9e8", "size": "100G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-afdb710f0c754c5eae3eb9ab1e7c74a7", "size": "724M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-8e6b7c0fbf52421e8d775db269cdb3df", "size": "4.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fef4bac931e64c25a80423632cf266ca", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-4ab7ff8e6b564db9931f1c7b8244c490", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-f2f77a5b4f25404ab4d64dbd44f2d84c", "size": "100.1G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdf", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpatha", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-lvmlock", "size": "1.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-33e3eecd45ed485a898650feb3bf97e3", "size": "50.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-9b4c062db4c74396a5f8072f72a6f84b", "size": "352.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-5bb4d8b5f51a1520b20de7cfef093af26ce84a02", "size": "34.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-c77135fdf5be4311a66fabfa946dc3ed", "size": "13.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-02279a9d606642879701f9c824437b41", "size": "11G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-2f81bb9b00854d2aab7305ccaf02ad85", "size": "763.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-f77efbdd736248cbabdd7808cb9eab4f", "size": "40.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-4e0268906dfd4f09b730a179939a3231", "size": "944.7G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdg", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathb", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-lvmlock", "size": "256M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-04672784d2694d049224f28278d260ec", "size": "500.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-3ddc6ed6242a433d977fb7485d91f244", "size": "486G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-1c5a2353ce2743ab8aa99a8e2176948c", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-a26bb8fe0a794900a4f59c1eadf8fb64", "size": "879.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25c15433cb804e3986bb5d23a140d9e8", "size": "100G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-afdb710f0c754c5eae3eb9ab1e7c74a7", "size": "724M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-8e6b7c0fbf52421e8d775db269cdb3df", "size": "4.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fef4bac931e64c25a80423632cf266ca", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-4ab7ff8e6b564db9931f1c7b8244c490", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-f2f77a5b4f25404ab4d64dbd44f2d84c", "size": "100.1G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdh", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpatha", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-lvmlock", "size": "1.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-33e3eecd45ed485a898650feb3bf97e3", "size": "50.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-9b4c062db4c74396a5f8072f72a6f84b", "size": "352.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-5bb4d8b5f51a1520b20de7cfef093af26ce84a02", "size": "34.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-c77135fdf5be4311a66fabfa946dc3ed", "size": "13.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-02279a9d606642879701f9c824437b41", "size": "11G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-2f81bb9b00854d2aab7305ccaf02ad85", "size": "763.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-f77efbdd736248cbabdd7808cb9eab4f", "size": "40.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "4d98e6f819dd44ecb6464c47fcac066f-4e0268906dfd4f09b730a179939a3231", "size": "944.7G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdi", "size": "50T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathb", "size": "50T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-lvmlock", "size": "256M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-04672784d2694d049224f28278d260ec", "size": "500.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-3ddc6ed6242a433d977fb7485d91f244", "size": "486G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-1c5a2353ce2743ab8aa99a8e2176948c", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-a26bb8fe0a794900a4f59c1eadf8fb64", "size": "879.3G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25c15433cb804e3986bb5d23a140d9e8", "size": "100G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-afdb710f0c754c5eae3eb9ab1e7c74a7", "size": "724M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-8e6b7c0fbf52421e8d775db269cdb3df", "size": "4.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fef4bac931e64c25a80423632cf266ca", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-4ab7ff8e6b564db9931f1c7b8244c490", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-25d9c6a9ea8044da9bc7964c0fde1f79", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "7e3ee0a492f4414099bea4b814ff032e-f2f77a5b4f25404ab4d64dbd44f2d84c", "size": "100.1G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdj", "size": "43T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathc", "size": "43T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-lvmlock", "size": "3G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-e4569b00efdd41a59122936cde2477de", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-78f244b7e1c34577bff52fc87746cfbc", "size": "150.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-7116fbe634e6407081a412948fad310e", "size": "19G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-190787c681a65ece1b6036a2275640ca41c280d4", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-174e9926247c40b1ac6d68a02a5f0d31", "size": "628M", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdk", "size": "43T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathc", "size": "43T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-lvmlock", "size": "3G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-e4569b00efdd41a59122936cde2477de", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-78f244b7e1c34577bff52fc87746cfbc", "size": "150.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-7116fbe634e6407081a412948fad310e", "size": "19G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-190787c681a65ece1b6036a2275640ca41c280d4", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-174e9926247c40b1ac6d68a02a5f0d31", "size": "628M", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdl", "size": "43T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathc", "size": "43T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-lvmlock", "size": "3G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-e4569b00efdd41a59122936cde2477de", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-78f244b7e1c34577bff52fc87746cfbc", "size": "150.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-7116fbe634e6407081a412948fad310e", "size": "19G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-190787c681a65ece1b6036a2275640ca41c280d4", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-174e9926247c40b1ac6d68a02a5f0d31", "size": "628M", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdm", "size": "43T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathc", "size": "43T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-lvmlock", "size": "3G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-e4569b00efdd41a59122936cde2477de", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-153c06d0bf134cd18ad1f9a31854d2a3", "size": "308M", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-78f244b7e1c34577bff52fc87746cfbc", "size": "150.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-7116fbe634e6407081a412948fad310e", "size": "19G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-190787c681a65ece1b6036a2275640ca41c280d4", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "c0e215b88f7b4dceb845b4e18c9ff4c2-174e9926247c40b1ac6d68a02a5f0d31", "size": "628M", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdn", "size": "27.4T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathd", "size": "27.4T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-lvmlock", "size": "2G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-55630eaf025e44269d18b9367cada6d7", "size": "5.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-82d46d04889ece85419d983bc8695c5c0cace3e1", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-13afcb5a6da84fcba88e4ce61707eddd", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-23c13480b84042338bf84ff6df77d672", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-6aebf577aaca434094f510ee056b5f7a", "size": "14.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-a3d215ffd6a94135ba96edd7a6c8dcda", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-eb4996c92e0d4648adc7cbb1f084d8a9", "size": "3.7G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-17005e9ae36e40d4b675a74563fa952a", "size": "60.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-cf600182710b48ba9a6bf2607214128f", "size": "55.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-cf93e88de05042c4bcf3db16f07e130a", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-d211ddf2716d456b9e71d6748036af78", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-ff2ce9264a71486aa44ddce7ceeb2ed2", "size": "666.4G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "sdo", "size": "27.4T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "mpathd", "size": "27.4T", "type": "mpath", "mountpoint": null,
+               "children": [
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-lvmlock", "size": "2G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-55630eaf025e44269d18b9367cada6d7", "size": "5.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-82d46d04889ece85419d983bc8695c5c0cace3e1", "size": "584M", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-13afcb5a6da84fcba88e4ce61707eddd", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-fa01bdb56d0a477e8d2eb173e9e8454d", "size": "5.9G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-23c13480b84042338bf84ff6df77d672", "size": "15.1G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-host_8cbc37bf2b7e4474b8c4153051b62590", "size": "4M", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-6aebf577aaca434094f510ee056b5f7a", "size": "14.2G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-a3d215ffd6a94135ba96edd7a6c8dcda", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-eb4996c92e0d4648adc7cbb1f084d8a9", "size": "3.7G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-17005e9ae36e40d4b675a74563fa952a", "size": "60.5G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-cf600182710b48ba9a6bf2607214128f", "size": "55.4G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-cf93e88de05042c4bcf3db16f07e130a", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-d211ddf2716d456b9e71d6748036af78", "size": "10G", "type": "lvm", "mountpoint": null},
+                  {"name": "fc5731ebfdbe423d92a7585dd03b47b0-ff2ce9264a71486aa44ddce7ceeb2ed2", "size": "666.4G", "type": "lvm", "mountpoint": null}
+               ]
+            }
+         ]
+      },
+      {"name": "nvme0n1", "size": "2.9T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme0n1p1", "size": "800G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-148"},
+            {"name": "nvme0n1p2", "size": "2.1T", "type": "part", "mountpoint": null},
+            {"name": "nvme0n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme1n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme1n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-158"},
+            {"name": "nvme1n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme1n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme2n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme2n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-159"},
+            {"name": "nvme2n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme2n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme3n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme3n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-160"},
+            {"name": "nvme3n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme3n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme4n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme4n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-176"},
+            {"name": "nvme4n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme4n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme5n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme5n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-175"},
+            {"name": "nvme5n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme5n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      },
+      {"name": "nvme6n1", "size": "7T", "type": "disk", "mountpoint": null,
+         "children": [
+            {"name": "nvme6n1p1", "size": "20G", "type": "part", "mountpoint": "/var/lib/ceph/osd/ceph-173"},
+            {"name": "nvme6n1p2", "size": "7T", "type": "part", "mountpoint": null},
+            {"name": "nvme6n1p3", "size": "3G", "type": "part", "mountpoint": null}
+         ]
+      }
+   ]
+}
