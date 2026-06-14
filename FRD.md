@@ -1,8 +1,8 @@
 # Functional Requirements Document (FRD)
 ## EliCloud Monitor
 
-**Version:** 1.2  
-**Date:** 2026-06-08  
+**Version:** 1.3  
+**Date:** 2026-06-14  
 
 ---
 
@@ -224,6 +224,7 @@ Data source: smartctl output files collected from storage nodes via SCP — not 
 | FR-12A.1 | System shall maintain a registry of storage nodes (hostname, SSH host/IP, SSH port, SSH user, SSH key path) stored in the app's own database |
 | FR-12A.2 | System shall allow adding, editing, and deleting storage node entries (CRUD in app DB only) |
 | FR-12A.3 | System shall support enabling or disabling individual storage nodes |
+| FR-12A.4 | System shall support an `is_ceph_admin` flag per storage node — reserved for future use; all enabled nodes already collect cluster-wide `ceph osd df` data identically |
 
 #### FR-12B: smartctl Data Collection
 
@@ -251,25 +252,71 @@ Data source: smartctl output files collected from storage nodes via SCP — not 
 | ID | Requirement |
 |----|-------------|
 | FR-12D.1 | System shall provide a "Disk Health" page displaying a unified table of all NVMe disks across all storage nodes |
-| FR-12D.2 | Table columns: Hostname, NVMe Device, Model Number, Capacity, TBW, Endurance Used, Write Endurance (Life Remaining), Available Spare, Disk Health, Summary, Notes |
+| FR-12D.2 | Table shall combine NVMe SMART data with OSD Map and Ceph OSD df data in a single 17-column table: Hostname, NVMe Device, OSD ID, OSD Size, Model, Capacity, TBW, Endurance Used %, Life Remaining %, Available Spare %, Disk Health, Summary, Use%, CRUSH Weight, PGs, Status, Notes |
 | FR-12D.3 | Disk Health column shall be color-coded: PASSED=green, FAILED=red |
 | FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health status |
 | FR-12D.5 | System shall display the timestamp of the last data collection |
-| FR-12D.6 | System shall provide a "Refresh" button to trigger an on-demand SCP collection run |
+| FR-12D.6 | System shall provide a "Refresh" button to trigger on-demand SCP collection + Ceph data refresh simultaneously |
 | FR-12D.7 | System shall allow exporting the disk health table to CSV |
+| FR-12D.8 | OSD ID and OSD Size columns shall be populated via client-side join: `OsdMapping.hostname::nvme_device → DiskHealthRecord` |
+| FR-12D.9 | Use%, CRUSH Weight, PGs, Status columns shall be populated via client-side join: `CephOsdRecord.osd_id → OsdMapping.osd_id` |
+| FR-12D.10 | Status badge shall show "active" (reweight > 0) or "out" (reweight = 0) — derived from Ceph reweight, not a raw status field |
+
+---
+
+### FR-13: Host Filesystem Monitoring
+
+Data source: Prometheus `node_exporter` HTTP scrape — not ZStack API.
+
+#### FR-13A: Collection
+
+| ID | Requirement |
+|----|-------------|
+| FR-13A.1 | System shall scrape each ZStack host's `node_exporter` metrics endpoint (default port 9100) on a configurable interval (default: 60 seconds) |
+| FR-13A.2 | System shall parse `node_filesystem_size_bytes`, `node_filesystem_avail_bytes`, `node_filesystem_files`, and `node_filesystem_files_free` metrics |
+| FR-13A.3 | System shall calculate `used_bytes`, `use_pct`, `inodes_used`, and `inode_use_pct` from raw metrics |
+| FR-13A.4 | System shall upsert results into `HostDiskRecord` keyed on `(host_id, mountpoint)` |
+
+#### FR-13B: Display
+
+| ID | Requirement |
+|----|-------------|
+| FR-13B.1 | Host filesystem disk utilization shall be shown in the Hosts detail view |
+| FR-13B.2 | Utilization percentage shall be color-coded: ≥85% = red (danger), ≥70% = amber (warning) |
+
+---
+
+### FR-14: Executive Report Export
+
+#### FR-14A: Report Content
+
+| ID | Requirement |
+|----|-------------|
+| FR-14A.1 | System shall generate a multi-section "Infrastructure Executive Report" covering: cluster summary, host list, VM list, storage list, project list, and disk health summary |
+| FR-14A.2 | Report data shall be assembled client-side from existing API endpoints (no separate report backend required) |
+
+#### FR-14B: Export Formats
+
+| ID | Requirement |
+|----|-------------|
+| FR-14B.1 | System shall support PDF export (`downloadExecutivePDF` via jsPDF) with multi-page layout, headers, footers, and section tables |
+| FR-14B.2 | System shall support XLSX export (`downloadExecutiveXLSX` via ExcelJS) with styled sheets per section, column widths, and header formatting |
+| FR-14B.3 | System shall support DOCX export (`downloadExecutiveDOCX` via docx library) with title page, branded header/footer, and per-section tables |
+| FR-14B.4 | All three formats shall be accessible from the Reports page under an "Executive Report" section |
 
 ---
 
 ## 4. Data Flow
 
 ```
-ZStack API                         Storage Nodes (SCP)
-    │                                      │
-    ▼  (AccessKey auth, GET only)          ▼  (SSH/SCP, read-only file download)
-Data Collector (cron/scheduler)    smartctl Collector (on-demand / scheduled)
-    │                                      │
-    ▼  (upsert by zstack_uuid)             ▼  (parse + upsert by hostname+device)
-Database (PostgreSQL) ─────────────────────┘
+ZStack API                  Storage Nodes (SCP)         Hosts (:9100/metrics)
+    │                              │                           │
+    ▼ (AccessKey auth, GET only)   ▼ (SSH/SCP, read-only)     ▼ (HTTP GET, Prometheus)
+ZStack Sync Scheduler     smartctl + lsblk +           Prometheus Scrape
+(every 5 min)             ceph_osd_df collectors       Scheduler (every 60 s)
+    │                     (on-demand / scheduled)              │
+    ▼ (upsert zstack_uuid) ▼ (parse + upsert)                  ▼ (upsert host+mountpoint)
+Database (PostgreSQL) ─────────────────────────────────────────┘
     │
     ▼
 Backend REST API
@@ -278,7 +325,7 @@ Backend REST API
 Frontend Dashboard (browser)
     │
     ▼
-Report Export (CSV / PDF)
+Report Export (CSV / PDF / XLSX / DOCX — client-side)
 ```
 
 ---
@@ -289,3 +336,5 @@ Report Export (CSV / PDF)
 - **CRUD operations are app-internal only.** Creating, editing, or deleting data (users, resource groups, logs) targets this app's own PostgreSQL database exclusively.
 - Credentials must not be stored in version control
 - The application must run entirely on-premise
+- **lsblk and ceph osd df data are produced externally.** Collector scripts (`lsblk_collect.sh`, `ceph_osd_df_collect.sh`) are deposited on storage nodes; the backend fetches them via SCP — it does not run `lsblk` or `ceph` commands itself
+- **All 11 storage nodes produce identical cluster-wide `ceph osd df` data.** Only the newest collected file is parsed to avoid redundant writes

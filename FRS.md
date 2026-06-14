@@ -1,8 +1,8 @@
 # Functional Requirements Specification (FRS)
 ## EliCloud Monitor
 
-**Version:** 1.2  
-**Date:** 2026-06-08  
+**Version:** 1.3  
+**Date:** 2026-06-14  
 
 ---
 
@@ -59,8 +59,11 @@ elicloudmonitor/
 │   │   │   ├── resource_group.py
 │   │   │   ├── snapshot.py
 │   │   │   ├── collection_log.py
-│   │   │   ├── storage_node.py   # StorageNode registry
-│   │   │   └── disk_health.py    # DiskHealthRecord (parsed smartctl)
+│   │   │   ├── storage_node.py   # StorageNode registry (is_ceph_admin, last_collect_status)
+│   │   │   ├── disk_health.py    # DiskHealthRecord (parsed smartctl)
+│   │   │   ├── host_disk.py      # HostDiskRecord (Prometheus node_exporter filesystem metrics)
+│   │   │   ├── osd_mapping.py    # OsdMapping (nvme_device → osd_id from lsblk JSON)
+│   │   │   └── ceph_osd.py       # CephOsdRecord (ceph osd df metrics per OSD ID)
 │   │   ├── schemas/              # Pydantic request/response schemas
 │   │   ├── routers/              # FastAPI route handlers
 │   │   │   ├── auth.py           # POST /auth/login, GET /auth/me (public)
@@ -73,12 +76,16 @@ elicloudmonitor/
 │   │   │   ├── reports.py
 │   │   │   ├── dashboard.py
 │   │   │   ├── storage_nodes.py  # CRUD for StorageNode registry
-│   │   │   └── disk_health.py    # Disk health query + refresh trigger
+│   │   │   ├── disk_health.py    # Disk health query + refresh trigger
+│   │   │   └── ceph_osd.py       # Ceph OSD map + df query + refresh trigger
 │   │   ├── services/             # Business logic
 │   │   │   ├── zstack_client.py  # ZStack API HTTP client (GET only) + ZQL queries
 │   │   │   ├── sync_service.py   # Data collection orchestration
 │   │   │   ├── report_service.py # Report generation
-│   │   │   └── smartctl_service.py # SCP collection + smartctl parser
+│   │   │   ├── smartctl_service.py # SCP collection + smartctl parser
+│   │   │   ├── prometheus_service.py # HTTP scrape of node_exporter; upserts HostDiskRecord
+│   │   │   ├── lsblk_service.py  # SCP fetch + parse of lsblk JSON; upserts OsdMapping
+│   │   │   └── ceph_osd_service.py # SCP fetch + parse of ceph osd df JSON; upserts CephOsdRecord
 │   │   └── scheduler.py          # APScheduler setup
 │   └── alembic/                  # DB migrations
 ├── frontend/
@@ -143,6 +150,9 @@ elicloudmonitor/
 | GET | `/hosts` | List all hosts (pagination, filter by state) |
 | GET | `/hosts/{id}` | Single host detail with VM list |
 | GET | `/hosts/{id}/history` | Historical snapshots for a host |
+| GET | `/hosts/disk-summary` | Map of host_id → HostDiskSummary (filesystem utilization per mountpoint) |
+| POST | `/hosts/disk-refresh` | Trigger Prometheus node_exporter scrape for all hosts |
+| GET | `/hosts/trend` | Host count trend over time |
 
 #### Storage
 
@@ -243,6 +253,14 @@ Query params for `/vms`:
 | POST | `/disk-health/refresh/{storage_node_id}` | Trigger refresh for a single storage node |
 | GET | `/disk-health/export/csv` | Export disk health table as CSV |
 
+#### Ceph OSD
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ceph-osd/osd-map` | List all OsdMapping records (NVMe → OSD ID) |
+| GET | `/ceph-osd/osd-df` | List all CephOsdRecord (ceph osd df) ordered by osd_id |
+| POST | `/ceph-osd/refresh` | Trigger lsblk + ceph osd df collection from all enabled nodes; parse + upsert |
+
 #### Admin / Status
 
 | Method | Path | Description |
@@ -323,6 +341,12 @@ Models follow the ERD. Key implementation notes:
 - `VM.appliance_type` (`VARCHAR`, nullable) — filled only for ApplianceVm rows (e.g. `'VirtualRouter'`, `'LoadBalancer'`)
 - All user-facing queries (list, count, trend, compute) apply `WHERE vm_type = 'UserVm' OR vm_type IS NULL`
 - `GET /vms/infrastructure` returns only `ApplianceVm` rows with a computed `infra_type` label
+- `Volume` fields: `size` (provisioned bytes), `actual_size` (used bytes), `device_id` (int index), `install_path`, `status`, `state`
+- `StorageNode.is_ceph_admin` — `BOOLEAN NOT NULL DEFAULT false`; field reserved for future use; currently all enabled nodes participate in ceph osd df collection
+- `HostDiskRecord` — upsert keyed on `(host_id, mountpoint)` (named constraint `uq_host_disk_host_mountpoint`)
+- `OsdMapping` — upsert keyed on `(hostname, nvme_device)` (named constraint `uq_osd_mapping_hostname_nvme`)
+- `CephOsdRecord.status` — not stored in ceph osd df JSON; derived on parse: `reweight > 0.0` → `"active"`, `reweight == 0.0` → `"out"`
+- `CephOsdRecord` — only the newest collected file is parsed (all 11 nodes produce identical cluster-wide data); upsert keyed on `osd_id` (named constraint `uq_ceph_osd_id`)
 - DB schema changes are managed via Alembic (`alembic upgrade head` runs on container startup)
 
 ---
@@ -421,14 +445,17 @@ All `fetchX()` functions attempt the real backend API and fall back to mock data
 - Export CSV/PDF buttons (disabled until backend is wired)
 
 #### Disk Health (`/disk-health`)
-- Data table: all NVMe disks across all storage nodes, latest SMART data
-- Columns: Hostname, NVMe Device, Model Number, Capacity, TBW (TB), Endurance Used %, Write Endurance (Life Remaining) %, Available Spare %, Disk Health, Summary, Notes
-- Disk Health badge: `PASSED`=green, `FAILED`=red
+- Single unified table: NVMe SMART + OSD Map + Ceph OSD df in one 17-column view
+- Columns: Hostname, NVMe Device, OSD ID, OSD Size, Model, Capacity (TB), TBW (TB), Endurance Used %, Life Remaining %, Available Spare %, Disk Health, Summary, Use% (Ceph), CRUSH Weight, PGs, Status, Notes
+- OSD ID + OSD Size joined client-side: `osdMapIndex.get(\`${hostname}::${nvme_device}\`)` → `OsdMapping`
+- Use%/Weight/PGs/Status joined client-side: `cephOsdIndex.get(osd_id)` → `CephOsdRecord`
+- `EnrichedDisk` interface extends `DiskHealthRecord` with nullable OSD/Ceph fields
+- Disk Health badge: `PASSED`=green, `FAILED`=red; Status badge: "active"=green, "out"=gray
 - Filter bar: Hostname dropdown, Health Status dropdown (All / PASSED / FAILED)
-- Last collected timestamp shown per storage node or as a global badge
-- "Refresh" button → `POST /disk-health/refresh`; shows loading state while running
+- Summary cards: Total Disks, Active OSDs (status === "active" || "up"), PASSED, FAILED
+- "Refresh" button fires `POST /disk-health/refresh` + `POST /ceph-osd/refresh` simultaneously
 - Export CSV button → `GET /disk-health/export/csv`
-- Falls back to mock data when backend is unavailable
+- APScheduler jobs: `disk_health_collect` (smartctl) + `ceph_collect` (lsblk + osd df) + `host_disk_scrape` (Prometheus)
 
 #### Users (`/users`)
 - **Admin-only page** — non-Admin users (Operator, Viewer) are redirected to `/` by a route-level guard using `useCurrentUser`
@@ -460,6 +487,16 @@ DATABASE_URL=postgresql://user:password@postgres:5432/elicloudmonitor
 APP_PORT=8000
 APP_ENV=production
 SECRET_KEY=changeme
+
+# Disk Health (smartctl SCP)
+SMARTCTL_COLLECT_INTERVAL_SECONDS=3600
+
+# Ceph OSD Monitoring (lsblk + ceph osd df SCP)
+CEPH_COLLECT_INTERVAL_SECONDS=3600
+
+# Host Filesystem Monitoring (Prometheus node_exporter)
+PROMETHEUS_NODE_EXPORTER_PORT=9100
+PROMETHEUS_SCRAPE_INTERVAL_SECONDS=60
 
 # Frontend
 VITE_API_BASE_URL=http://backend:8000/api/v1

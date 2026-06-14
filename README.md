@@ -42,6 +42,9 @@ A read-only internal web dashboard and reporting tool for **ZStack private cloud
 | F-09 | Dashboard | Cluster-wide summary cards, top-hosts by utilization, trend chart previews |
 | F-10 | User Management | JWT auth, three roles (Admin/Operator/Viewer), per-module permission matrix |
 | F-11 | **Disk Health Monitoring** | NVMe SMART data — SCP collection from storage nodes, parsed per-drive metrics, health badges, storage node CRUD |
+| F-12 | **Ceph OSD Monitoring** | lsblk NVMe↔OSD mapping + `ceph osd df` per-OSD utilization (Use%, Weight, PGs, Status) — collected via SCP, shown inline in the Disk Health table |
+| F-13 | **Host Filesystem Monitoring** | Per-mountpoint disk usage scraped from Prometheus node_exporter on each host; shown on Hosts page |
+| F-14 | **Executive Report Export** | Executive summary report (PDF, XLSX, DOCX) covering hosts, VMs, storage, and NVMe disk health |
 
 ---
 
@@ -79,14 +82,15 @@ A read-only internal web dashboard and reporting tool for **ZStack private cloud
 │  │ (AccessKey)  │  │ SCP + Parse  │  │               │  │
 │  └──────┬───────┘  └──────┬───────┘  └───────────────┘  │
 └─────────┼────────────────┼────────────────────────────--─┘
-          │ GET only        │ asyncssh SFTP
-          ▼                 ▼
-   ┌─────────────┐   ┌─────────────────┐
-   │ ZStack API  │   │ Storage Nodes   │
-   │ (private    │   │ /root/smartctl/ │
-   │  cloud)     │   │ *_smart.txt     │
-   └─────────────┘   └─────────────────┘
-          │
+          │ GET only        │ asyncssh SFTP          │ HTTP GET (Prometheus)
+          ▼                 ▼                        ▼
+   ┌─────────────┐   ┌─────────────────────┐   ┌─────────────────┐
+   │ ZStack API  │   │ Storage Nodes       │   │  Hosts          │
+   │ (private    │   │ /root/smartctl/     │   │  :9100          │
+   │  cloud)     │   │ *_smart.txt         │   │  node_exporter  │
+   └──────┬──────┘   │ *_lsblk.json        │   └─────────────────┘
+          │          │ *_ceph_osd_df.json  │
+          │          └─────────────────────┘
    ┌──────▼──────────────────────────┐
    │        PostgreSQL 15            │
    │ hosts · vms · storage · projects│
@@ -185,6 +189,9 @@ All configuration is via `.env` file or environment variables. Never hardcode se
 | `SMARTCTL_DIR` | `/app/smartctl` | Local directory where smartctl `.txt` files are stored (mounted from `./smartctl`) |
 | `SMARTCTL_COLLECT_INTERVAL_SECONDS` | `3600` | How often the scheduler runs SCP collection from storage nodes (seconds) |
 | `SMARTCTL_KNOWN_HOSTS` | `` | Path to SSH known_hosts file on backend; leave empty to skip host key verification |
+| `CEPH_COLLECT_INTERVAL_SECONDS` | `3600` | How often the scheduler collects lsblk + ceph osd df from storage nodes (seconds) |
+| `PROMETHEUS_NODE_EXPORTER_PORT` | `9100` | Port where node_exporter is running on each host |
+| `PROMETHEUS_SCRAPE_INTERVAL_SECONDS` | `300` | How often host filesystem metrics are scraped (seconds) |
 
 ### Frontend
 
@@ -333,7 +340,7 @@ Three tab views with date-range filtering:
 
 ### Disk Health (`/disk-health`)
 
-NVMe SMART health monitoring across all storage nodes.
+NVMe SMART health monitoring + Ceph OSD utilization across all storage nodes, in one unified table.
 
 #### Summary cards
 
@@ -341,30 +348,38 @@ NVMe SMART health monitoring across all storage nodes.
 |------|---------|
 | Total Drives | All NVMe devices in the database |
 | PASSED | Drives with SMART health = PASSED |
-| Warning | PASSED but with degraded Available Spare (<90%) or high endurance use (≥80%) |
-| Not Good | FAILED health, critical warning, spare at/below threshold, media errors |
+| Warning | PASSED but degraded spare (<90%) or high wear (≥80%) |
+| Not Good | FAILED, critical warning, spare at threshold, or media errors |
 
-#### NVMe Drive Details table
+#### Unified NVMe + OSD + Ceph table
 
-| Column | Description |
-|--------|-------------|
-| Hostname | Storage node label |
-| NVMe Device | Device name (e.g. `nvme0n1`) |
-| Model | Dell OEM model string |
-| Capacity | Drive capacity in TB |
-| TBW | Terabytes Written (cumulative) |
-| Endurance Used | Percentage Used from SMART (wear gauge) |
-| Life Remaining | 100% − Endurance Used |
-| Available Spare | NAND spare blocks remaining |
-| Disk Health | PASSED (green) / FAILED (red) badge |
-| Summary | Good / Warning / Not good |
-| Notes | Human-readable explanation |
+Each row is one NVMe device. Columns come from three joined data sources:
 
-Row background: red-tinted for "Not good", amber-tinted for "Warning". Filter by hostname or health status.
+| Column | Source | Description |
+|--------|--------|-------------|
+| Hostname | SMART | Storage node label |
+| NVMe Device | SMART | Device name (`nvme0n1`) |
+| OSD ID | OSD Map | Ceph OSD badge (`osd.23`) — null if unassigned |
+| Size | OSD Map | Disk size from lsblk (e.g. `2.9T`) |
+| Model | SMART | Drive model string |
+| Capacity | SMART | Manufacturer-rated capacity in TB |
+| TBW | SMART | Terabytes written (cumulative) |
+| End. Used | SMART | Endurance Used % (wear gauge) |
+| Life Rem. | SMART | 100% − Endurance Used |
+| Avail Spare | SMART | NAND spare blocks remaining |
+| Disk Health | SMART | PASSED (green) / FAILED (red) badge |
+| Summary | SMART | Good / Warning / Not good |
+| Use % | Ceph OSD df | OSD utilization — amber ≥70%, red ≥85% |
+| Weight | Ceph OSD df | CRUSH map weight |
+| PGs | Ceph OSD df | Placement group count |
+| Status | Ceph OSD df | `active` (green) / `out` (red) — derived from reweight |
+| Notes | SMART | Human-readable notes |
 
-**Collect & Refresh** — triggers SCP download from all enabled storage nodes followed by re-parse. Shows a result message (nodes collected, files parsed, any failures).
+All columns are sortable. Row background: red-tinted for "Not good" SMART summary, amber-tinted for "Warning".
 
-**Export CSV** — downloads the currently filtered view.
+**Collect & Refresh** — triggers SCP collection for SMART files **and** lsblk/ceph osd df files from all enabled storage nodes, then re-parses all three datasets.
+
+**Export CSV** — downloads all 18 columns in one file.
 
 #### Storage Nodes table
 
@@ -372,18 +387,17 @@ Manage the SSH config used for SFTP collection:
 
 | Column | Description |
 |--------|-------------|
-| Hostname | Label (must match filename prefix on remote host) |
+| Hostname | Label (must match hostname prefix in collected filenames) |
 | SSH Host | IP or FQDN the backend connects to |
 | Port | SSH port (default 22) |
 | User | SSH login user |
 | Key Path | Absolute path to private key on the backend container |
-| Remote Dir | Directory on the storage node containing `*_smart.txt` files |
+| Remote Dir | Directory on the node containing `*_smart.txt`, `*_lsblk.json`, `*_ceph_osd_df.json` |
 | Enabled | Whether this node is included in scheduled collection |
+| Ceph Admin | Cosmetic flag — all enabled nodes are collected for lsblk and ceph osd df |
 | Last Collected | Timestamp of most recent successful SFTP pull |
 | Status | Success / Failed / Never |
 | Error | Last error message if collection failed |
-
-Add, edit, or delete nodes using the **Add Node** button and row actions.
 
 ---
 
@@ -464,6 +478,17 @@ The script outputs files to `/root/smartctl/` in the format `{HOSTNAME}_{DEVICE}
 # Run every 6 hours
 0 */6 * * * /root/nvme_smartctl.sh
 ```
+
+**Additional collectors (lsblk + Ceph OSD df):**
+
+```bash
+# Copy collection scripts to the storage node coordinator (e.g. zs-storage01)
+# These run on all ceph nodes and collect additional data
+bash lsblk_collect.sh          # outputs {HOSTNAME}_lsblk.json
+bash ceph_osd_df_collect.sh    # outputs {HOSTNAME}_ceph_osd_df.json
+```
+
+Files are deposited to `SMARTCTL_DIR` (default `/app/smartctl`) by the external cron job. The backend parses them automatically on startup and on each scheduled collection.
 
 #### Step 2 — Prepare SSH access
 
@@ -589,14 +614,16 @@ Export is available on all major pages. All exports are generated client-side.
 
 ### Scheduler & Automation
 
-The backend runs two background jobs via APScheduler:
+The backend runs background jobs via APScheduler:
 
 | Job | Interval | What it does |
 |-----|----------|-------------|
 | `zstack_sync` | `ZSTACK_POLL_INTERVAL_SECONDS` (default: 5 min) | Polls ZStack API, upserts hosts/VMs/storage/projects |
-| `disk_health_collect` | `SMARTCTL_COLLECT_INTERVAL_SECONDS` (default: 1 hour) | SCP downloads smartctl files, parses and upserts disk health records |
+| `disk_health_collect` | `SMARTCTL_COLLECT_INTERVAL_SECONDS` (default: 1 hr) | SCP downloads `*_smart.txt` files, parses and upserts SMART records |
+| `ceph_collect` | `CEPH_COLLECT_INTERVAL_SECONDS` (default: 1 hr) | SCP downloads `*_lsblk.json` + `*_ceph_osd_df.json`, parses and upserts OSD map + OSD df records |
+| `host_disk_scrape` | `PROMETHEUS_SCRAPE_INTERVAL_SECONDS` (default: 5 min) | Scrapes node_exporter on each host for filesystem disk usage |
 
-Both jobs are safe to run while the system is live (idempotent — upsert, not insert).
+All jobs are safe to run while the system is live (idempotent — upsert, not insert).
 
 You can also trigger jobs manually:
 
@@ -607,6 +634,10 @@ curl -X POST http://localhost:8000/api/v1/sync/trigger \
 
 # Manual disk health collect + parse
 curl -X POST http://localhost:8000/api/v1/disk-health/refresh \
+  -H "Authorization: Bearer <your-token>"
+
+# Manual ceph/lsblk collect + parse
+curl -X POST http://localhost:8000/api/v1/ceph-osd/refresh \
   -H "Authorization: Bearer <your-token>"
 ```
 
@@ -620,9 +651,13 @@ elicloudmonitor/
 ├── .env.example                 # Template for .env
 ├── docker-compose.yml           # All services
 ├── smartctl/                    # Smartctl output files (local staging)
+│   ├── lsblk_collect.sh             # Run on each node; outputs {HOSTNAME}_lsblk.json
+│   ├── ceph_osd_df_collect.sh       # Run on ceph nodes; outputs {HOSTNAME}_ceph_osd_df.json
 │   └── {HOSTNAME}_{DEVICE}_smart.txt
 ├── ssh_keys/                    # SSH private keys for storage node access
 │   └── storage.pem
+├── query_vm_volumes.sh              # Shell script to query VMs + Volumes from DB; saves to query_output/
+├── query_output/                    # Timestamped query dumps (gitignored)
 ├── backend/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -650,7 +685,10 @@ elicloudmonitor/
 │       │   ├── collection_log.py
 │       │   ├── user.py          # App user + permissions JSONB
 │       │   ├── disk_health.py   # NVMe SMART record (one row per device)
-│       │   └── storage_node.py  # SSH config registry for storage nodes
+│       │   ├── storage_node.py  # SSH config registry for storage nodes
+│       │   ├── host_disk.py     # Host filesystem disk usage from Prometheus
+│       │   ├── osd_mapping.py   # NVMe↔OSD mapping from lsblk
+│       │   └── ceph_osd.py      # Ceph OSD utilization from ceph osd df
 │       ├── schemas/             # Pydantic v2 request/response schemas
 │       ├── routers/
 │       │   ├── auth.py          # POST /auth/login, GET /auth/me
@@ -664,12 +702,16 @@ elicloudmonitor/
 │       │   ├── compute.py       # Compute trend
 │       │   ├── disk_health.py   # GET /disk-health, POST /refresh, GET /export/csv
 │       │   ├── storage_nodes.py # StorageNode CRUD
-│       │   └── status.py        # App health, sync logs
+│       │   ├── status.py        # App health, sync logs
+│       │   └── ceph_osd.py      # GET /ceph-osd/osd-map, GET /ceph-osd/osd-df, POST /refresh
 │       └── services/
 │           ├── zstack_client.py # ZStack AccessKey HMAC-SHA1 HTTP client (GET only)
 │           ├── sync_service.py  # ZStack data collection orchestration
 │           ├── scp_service.py   # asyncssh SFTP collector — downloads *_smart.txt
-│           └── smartctl_service.py  # File parser + DB upsert
+│           ├── smartctl_service.py  # File parser + DB upsert
+│           ├── prometheus_service.py # Scrapes node_exporter on each host
+│           ├── lsblk_service.py      # Parses lsblk JSON → OsdMapping
+│           └── ceph_osd_service.py   # Parses ceph osd df JSON → CephOsdRecord
 ├── frontend/
 │   ├── Dockerfile
 │   ├── package.json
@@ -796,6 +838,14 @@ All endpoints except `POST /auth/login` require `Authorization: Bearer <token>`.
 | POST | `/disk-health/refresh` | Trigger SCP collect + re-parse on all enabled nodes |
 | GET | `/disk-health/export/csv` | Server-generated CSV export |
 
+#### Ceph OSD
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ceph-osd/osd-map` | NVMe→OSD mapping from lsblk |
+| GET | `/ceph-osd/osd-df` | Per-OSD utilization from ceph osd df |
+| POST | `/ceph-osd/refresh` | Collect lsblk + ceph osd df from all enabled nodes, parse and upsert |
+
 #### Storage Nodes
 
 | Method | Path | Description |
@@ -906,6 +956,7 @@ All API responses are served from the **local PostgreSQL database** — not live
 3. **VM–project association resolved via ZQL, not REST.** ZStack's standard REST API (`VmInstanceInventory`) does not expose account/project ownership. The app uses ZQL (`GET /v1/zql?zql=query accountresourceref ...`) to fetch ownership data from ZStack's internal `AccountResourceRefVO` table. Coverage: ~97% of VMs. The remaining ~3% are admin-owned VMs with no IAM2 project. See `zql_flow.md` for details.
 4. **SSH keys must be mounted into the backend container.** Place keys in `./ssh_keys/` and reference them as `/app/ssh_keys/<filename>` in the StorageNode config.
 5. **ApplianceVm types are stored but excluded from user-facing counts.** ZStack-internal VMs (vRouters, Load Balancers, etc.) are synced and stored with `vm_type='ApplianceVm'`. They appear in the dedicated Infrastructure VMs section on the VMs page and are excluded from all running/stopped/total VM statistics and dashboard counts.
+6. **lsblk and ceph osd df are production-deposited.** The primary collection mechanism is an external cron on `zs-storage01` that SSHes to all nodes, runs the collector scripts, and SCPs the result files to the backend's `SMARTCTL_DIR`. The backend's SFTP collection is a secondary/on-demand path.
 
 ---
 

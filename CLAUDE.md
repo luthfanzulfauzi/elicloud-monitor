@@ -103,7 +103,7 @@ Refer to `FRS.md` for the full directory structure and API specification.
 
 ---
 
-## Implementation Status (as of 2026-06-08)
+## Implementation Status (as of 2026-06-14)
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -120,7 +120,11 @@ Refer to `FRS.md` for the full directory structure and API specification.
 | Dashboard accuracy fixes | ✅ Done | Running/stopped counts exclude ApplianceVm; CPU/Memory capacity totals exclude Disabled hosts |
 | Date display UTC fix | ✅ Done | `formatDate()` in `utils.ts` renders with `timeZone: 'UTC'` to prevent WIB (+7) date-shift for ZStack timestamps |
 | Alembic migrations | ✅ Done | `alembic.ini` + `alembic/env.py` (async-compatible); baseline migration `68ea7ce5bae9`; `main.py` runs `alembic upgrade head` on startup via `asyncio.to_thread` — no more `create_all()` or manual `ALTER TABLE` |
-| `/reports` backend router (CSV/PDF export) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
+| Host filesystem monitoring via Prometheus | ✅ Done | `HostDiskRecord` model (`host_disk.py`); `prometheus_service.py` scrapes node_exporter `/metrics` per host; `GET /hosts/disk-summary` + `POST /hosts/disk-refresh` in `hosts.py` router; disk utilization per mountpoint visible on Hosts detail |
+| Ceph OSD monitoring (lsblk + ceph osd df) | ✅ Done | `OsdMapping` + `CephOsdRecord` models; `lsblk_service.py` + `ceph_osd_service.py` services; `lsblk_collect.sh` + `ceph_osd_df_collect.sh` collectors on storage nodes; `/ceph-osd` router (`osd-map`, `osd-df`, `refresh`); APScheduler `ceph_collect` job; status derived from `reweight` (>0 → "active", 0 → "out"); only newest file parsed (all 11 nodes produce identical cluster-wide data) |
+| Unified Disk Health page (NVMe SMART + OSD + Ceph) | ✅ Done | `DiskHealth.tsx` single 17-column table: SMART metrics + OSD ID/Size from `OsdMapping` + Use%/Weight/PGs/Status from `CephOsdRecord`; client-side join via two Maps keyed on `hostname::nvme_device` and `osd_id`; no separate tabs; `OsdStatusBadge` handles "active"/"up"; Refresh fires both SMART and Ceph refresh mutations |
+| Executive Report export (PDF + XLSX + DOCX) | ✅ Done | `frontend/src/lib/export.ts`: `downloadExecutivePDF` (jsPDF), `downloadExecutiveXLSX` (ExcelJS), `downloadExecutiveDOCX` (docx library); all client-side; Reports page generates unified executive report with host/VM/storage/project/disk summary sections |
+| `/reports` backend router (server-side scheduled reports) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
 | Deployment docs | ❌ Pending | Phase 4 |
 
 ---
@@ -195,6 +199,10 @@ APP_PORT=8000
 APP_ENV=development
 SECRET_KEY=
 VITE_API_BASE_URL=http://localhost:8000/api/v1
+SMARTCTL_COLLECT_INTERVAL_SECONDS=3600
+CEPH_COLLECT_INTERVAL_SECONDS=3600
+PROMETHEUS_NODE_EXPORTER_PORT=9100
+PROMETHEUS_SCRAPE_INTERVAL_SECONDS=60
 ```
 
 ---

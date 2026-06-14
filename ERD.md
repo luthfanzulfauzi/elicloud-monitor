@@ -1,8 +1,8 @@
 # Entity Relationship Diagram (ERD)
 ## EliCloud Monitor
 
-**Version:** 1.2  
-**Date:** 2026-06-08  
+**Version:** 1.3  
+**Date:** 2026-06-14  
 
 ---
 
@@ -25,6 +25,9 @@
 | `AppUser` | Application user with role and per-module permissions (not a ZStack entity) |
 | `StorageNode` | Registry of storage servers that expose smartctl output via SCP (app-managed) |
 | `DiskHealthRecord` | Latest parsed NVMe SMART metrics per (hostname, nvme_device) pair (app-managed) |
+| `HostDiskRecord` | Latest Prometheus-scraped filesystem utilization per (host, mountpoint) pair (app-managed) |
+| `OsdMapping` | NVMe device → Ceph OSD ID mapping parsed from lsblk JSON per (hostname, nvme_device) (app-managed) |
+| `CephOsdRecord` | Latest `ceph osd df` metrics per OSD ID — cluster-wide (app-managed) |
 
 ---
 
@@ -107,10 +110,13 @@ Volume {
     name                VARCHAR NOT NULL
     type                VARCHAR                   -- Root, Data
     state               VARCHAR
-    vm_id               UUID    FK -> VM (nullable for detached)
+    status              VARCHAR                   -- Ready, NotInstantiated, etc.
+    vm_id               UUID    FK -> VM (nullable for detached volumes)
     primary_storage_id  UUID    FK -> PrimaryStorage
-    size                BIGINT                    -- Bytes (actual allocated)
-    capacity            BIGINT                    -- Bytes (provisioned)
+    size                BIGINT                    -- Provisioned size in bytes
+    actual_size         BIGINT                    -- Actual used bytes on storage
+    device_id           INT                       -- Device index on VM (e.g. 0=root, 1=data)
+    install_path        VARCHAR                   -- Storage backend path
     created_at          TIMESTAMP
     updated_at          TIMESTAMP
 }
@@ -243,17 +249,20 @@ Role defaults:
 ### StorageNode
 ```
 StorageNode {
-    id              UUID        PK
-    hostname        VARCHAR     UNIQUE NOT NULL   -- display name / hostname label
-    ssh_host        VARCHAR     NOT NULL          -- IP or FQDN for SCP connection
-    ssh_port        INT         NOT NULL DEFAULT 22
-    ssh_user        VARCHAR     NOT NULL
-    ssh_key_path    VARCHAR     NOT NULL          -- path to private key on the monitor VM
-    remote_dir      VARCHAR     NOT NULL          -- remote directory where smart.txt files are stored
-    enabled         BOOLEAN     NOT NULL DEFAULT true
-    last_collected_at TIMESTAMP                   -- timestamp of last successful SCP pull
-    created_at      TIMESTAMP
-    updated_at      TIMESTAMP
+    id                  UUID        PK
+    hostname            VARCHAR     UNIQUE NOT NULL   -- display name / hostname label
+    ssh_host            VARCHAR     NOT NULL          -- IP or FQDN for SCP connection
+    ssh_port            INT         NOT NULL DEFAULT 22
+    ssh_user            VARCHAR     NOT NULL
+    ssh_key_path        VARCHAR     NOT NULL          -- path to private key on the monitor VM
+    remote_dir          VARCHAR     NOT NULL          -- remote directory where smart.txt files are stored
+    enabled             BOOLEAN     NOT NULL DEFAULT true
+    is_ceph_admin       BOOLEAN     NOT NULL DEFAULT false  -- node that can run ceph commands (unused; all nodes collect osd df)
+    last_collected_at   TIMESTAMP                     -- timestamp of last successful SCP pull
+    last_collect_status VARCHAR                       -- success | failed | partial
+    last_collect_error  TEXT                          -- error detail from last failed collection
+    created_at          TIMESTAMP
+    updated_at          TIMESTAMP
 }
 ```
 
@@ -280,6 +289,62 @@ DiskHealthRecord {
 }
 ```
 
+### HostDiskRecord
+```
+HostDiskRecord {
+    id              UUID        PK
+    host_id         UUID        FK -> Host (CASCADE DELETE)
+    mountpoint      VARCHAR     NOT NULL          -- e.g. /, /var, /data
+    device          VARCHAR     NOT NULL          -- e.g. /dev/sda1
+    fstype          VARCHAR     NOT NULL          -- e.g. ext4, xfs
+    size_bytes      BIGINT      NOT NULL
+    used_bytes      BIGINT      NOT NULL
+    avail_bytes     BIGINT      NOT NULL
+    use_pct         FLOAT       NOT NULL          -- percentage used
+    inodes_total    BIGINT                        -- nullable
+    inodes_used     BIGINT                        -- nullable
+    inode_use_pct   FLOAT                         -- nullable
+    collected_at    TIMESTAMP   NOT NULL          -- when scraped from Prometheus node_exporter
+    UNIQUE(host_id, mountpoint)
+}
+```
+
+### OsdMapping
+```
+OsdMapping {
+    id              UUID        PK
+    hostname        VARCHAR     NOT NULL          -- storage node hostname
+    nvme_device     VARCHAR     NOT NULL          -- e.g. nvme0n1
+    osd_id          INT                           -- Ceph OSD ID (null if no OSD on this device)
+    size            VARCHAR                       -- human-readable size from lsblk (e.g. "3.5T")
+    mount_path      VARCHAR                       -- OSD mount path (e.g. /var/lib/ceph/osd/ceph-0)
+    collected_at    TIMESTAMP   NOT NULL
+    updated_at      TIMESTAMP
+    UNIQUE(hostname, nvme_device)
+}
+```
+
+### CephOsdRecord
+```
+CephOsdRecord {
+    id              UUID        PK
+    osd_id          INT         NOT NULL UNIQUE   -- Ceph OSD ID (e.g. 0, 1, ... 263)
+    osd_name        VARCHAR                       -- e.g. "osd.0"
+    kb_total        BIGINT                        -- total kilobytes
+    kb_used         BIGINT                        -- used kilobytes
+    kb_avail        BIGINT                        -- available kilobytes
+    utilization     FLOAT                         -- use percentage (0–100)
+    var             FLOAT                         -- deviation from mean utilization
+    crush_weight    FLOAT                         -- CRUSH weight
+    reweight        FLOAT                         -- OSD reweight (0.0 = out, 1.0 = full weight)
+    pgs             INT                           -- placement groups on this OSD
+    status          VARCHAR                       -- derived: "active" (reweight>0) or "out" (reweight=0)
+    source_hostname VARCHAR                       -- which storage node file this was parsed from
+    collected_at    TIMESTAMP   NOT NULL
+    updated_at      TIMESTAMP
+}
+```
+
 ---
 
 ## 3. Relationships
@@ -287,6 +352,7 @@ DiskHealthRecord {
 ```
 Host            ||--o{ VM                   : "runs"
 Host            ||--o{ SnapshotHost         : "has snapshots"
+Host            ||--o{ HostDiskRecord       : "has filesystem records"
 PrimaryStorage  ||--o{ Volume               : "stores"
 PrimaryStorage  ||--o{ SnapshotStorage      : "has snapshots"
 Project         ||--o{ VM                   : "owns"
@@ -296,7 +362,10 @@ VM              ||--o{ Volume               : "has"
 VM              ||--o{ Tag                  : "has"
 VM              ||--o| EIP                  : "may have"
 StorageNode     ||--o{ DiskHealthRecord     : "has disk records"
+OsdMapping      }|--|| CephOsdRecord        : "osd_id join (client-side)"
 ```
+
+> `OsdMapping` and `CephOsdRecord` have no direct FK relationship in the DB. The frontend joins them client-side: `OsdMapping.osd_id → CephOsdRecord.osd_id`.
 
 ---
 
