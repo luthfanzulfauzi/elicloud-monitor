@@ -291,6 +291,7 @@ export interface StorageNode {
   ssh_key_path: string
   remote_dir: string
   enabled: boolean
+  is_ceph_admin: boolean
   last_collected_at: string | null
   last_collect_status: string | null
   last_collect_error: string | null
@@ -305,6 +306,7 @@ export interface StorageNodeCreate {
   ssh_key_path: string
   remote_dir: string
   enabled: boolean
+  is_ceph_admin: boolean
 }
 
 export interface StorageNodeUpdate {
@@ -315,6 +317,43 @@ export interface StorageNodeUpdate {
   ssh_key_path?: string
   remote_dir?: string
   enabled?: boolean
+  is_ceph_admin?: boolean
+}
+
+export interface OsdMapping {
+  id: string
+  hostname: string
+  nvme_device: string
+  osd_id: number | null
+  size: string | null
+  mount_path: string | null
+  collected_at: string
+}
+
+export interface CephOsdRecord {
+  id: string
+  osd_id: number
+  osd_name: string | null
+  kb_total: number | null
+  kb_used: number | null
+  kb_avail: number | null
+  utilization: number | null
+  var: number | null
+  crush_weight: number | null
+  reweight: number | null
+  pgs: number | null
+  status: string | null
+  source_hostname: string | null
+  collected_at: string
+}
+
+export interface CephCollectResult {
+  nodes_collected: number
+  nodes_failed: number
+  osd_mappings_parsed: number
+  ceph_osd_records_parsed: number
+  errors: number
+  message: string
 }
 
 export interface HostDiskSummary {
@@ -516,12 +555,12 @@ export function getMockStorageCapacityTrend(startDate?: string, endDate?: string
 }
 
 export const MOCK_STORAGE_NODES: StorageNode[] = [
-  { id: 'sn1', hostname: 'zs-storage01', ssh_host: '10.0.0.1', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:33:00Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
-  { id: 'sn2', hostname: 'zs-storage02', ssh_host: '10.0.0.2', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:33:52Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
-  { id: 'sn3', hostname: 'zs-storage03', ssh_host: '10.0.0.3', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: '2026-05-25T12:34:10Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
-  { id: 'sn4', hostname: 'zs-storage04', ssh_host: '10.0.0.4', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
-  { id: 'sn5', hostname: 'zs-storage05', ssh_host: '10.0.0.5', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
-  { id: 'sn6', hostname: 'zs-storage06', ssh_host: '10.0.0.6', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: false, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn1', hostname: 'zs-storage01', ssh_host: '10.0.0.1', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, is_ceph_admin: true, last_collected_at: '2026-05-25T12:33:00Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn2', hostname: 'zs-storage02', ssh_host: '10.0.0.2', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, is_ceph_admin: false, last_collected_at: '2026-05-25T12:33:52Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn3', hostname: 'zs-storage03', ssh_host: '10.0.0.3', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, is_ceph_admin: false, last_collected_at: '2026-05-25T12:34:10Z', last_collect_status: 'success', last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn4', hostname: 'zs-storage04', ssh_host: '10.0.0.4', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, is_ceph_admin: false, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn5', hostname: 'zs-storage05', ssh_host: '10.0.0.5', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: true, is_ceph_admin: false, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
+  { id: 'sn6', hostname: 'zs-storage06', ssh_host: '10.0.0.6', ssh_port: 22, ssh_user: 'root', ssh_key_path: '/app/ssh_keys/storage.pem', remote_dir: '/root/smartctl', enabled: false, is_ceph_admin: false, last_collected_at: null, last_collect_status: null, last_collect_error: null, created_at: '2026-05-25T00:00:00Z' },
 ]
 
 export const MOCK_DISK_HEALTH: DiskHealthRecord[] = [
@@ -791,6 +830,29 @@ export async function updateStorageNode(id: string, data: StorageNodeUpdate): Pr
 
 export async function deleteStorageNode(id: string): Promise<void> {
   await apiClient.delete(`/storage-nodes/${id}`)
+}
+
+export async function fetchOsdMap(): Promise<OsdMapping[]> {
+  try {
+    const res = await apiClient.get<OsdMapping[]>('/ceph-osd/osd-map')
+    return res.data
+  } catch {
+    return []
+  }
+}
+
+export async function fetchCephOsdDf(): Promise<CephOsdRecord[]> {
+  try {
+    const res = await apiClient.get<CephOsdRecord[]>('/ceph-osd/osd-df')
+    return res.data
+  } catch {
+    return []
+  }
+}
+
+export async function refreshCephOsd(): Promise<CephCollectResult> {
+  const res = await apiClient.post<CephCollectResult>('/ceph-osd/refresh')
+  return res.data
 }
 
 export async function fetchHostDiskSummary(): Promise<HostDiskSummaryMap> {

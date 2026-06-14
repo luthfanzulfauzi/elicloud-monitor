@@ -11,6 +11,7 @@ class StorageNodeCreate(BaseModel):
     ssh_key_path: str
     remote_dir: str
     enabled: bool = True
+    is_ceph_admin: bool = False
 
 
 class StorageNodeUpdate(BaseModel):
@@ -21,6 +22,7 @@ class StorageNodeUpdate(BaseModel):
     ssh_key_path: str | None = None
     remote_dir: str | None = None
     enabled: bool | None = None
+    is_ceph_admin: bool | None = None
 
 
 class StorageNodeOut(BaseModel):
@@ -34,6 +36,7 @@ class StorageNodeOut(BaseModel):
     ssh_key_path: str
     remote_dir: str
     enabled: bool
+    is_ceph_admin: bool
     last_collected_at: datetime | None
     last_collect_status: str | None
     last_collect_error: str | None

@@ -33,6 +33,14 @@ def setup_scheduler():
         replace_existing=True,
         max_instances=1,
     )
+    scheduler.add_job(
+        _ceph_collect_job,
+        "interval",
+        seconds=settings.CEPH_COLLECT_INTERVAL_SECONDS,
+        id="ceph_collect",
+        replace_existing=True,
+        max_instances=1,
+    )
 
 
 async def _sync_job():
@@ -54,6 +62,35 @@ async def _host_disk_scrape_job():
         log.info("Prometheus disk scrape done: success=%d errors=%d", success, errors)
     except Exception as exc:
         log.error("Prometheus disk scrape job failed: %s", exc)
+
+
+async def _ceph_collect_job():
+    from .services.lsblk_service import collect_lsblk_from_node, parse_and_upsert_lsblk
+    from .services.ceph_osd_service import collect_ceph_osd_df_from_node, parse_and_upsert_ceph_osd
+    from sqlalchemy import select
+    from .models.storage_node import StorageNode
+    import asyncio
+
+    log.info("Scheduled Ceph/lsblk collection starting")
+    try:
+        async with AsyncSessionLocal() as db:
+            nodes = (await db.execute(
+                select(StorageNode).where(StorageNode.enabled.is_(True))
+            )).scalars().all()
+
+            if nodes:
+                await asyncio.gather(*(collect_lsblk_from_node(n) for n in nodes))
+
+            # All enabled nodes produce identical cluster-wide ceph osd df data
+            if nodes:
+                await asyncio.gather(*(collect_ceph_osd_df_from_node(n) for n in nodes))
+
+            osd_map_parsed, _ = await parse_and_upsert_lsblk(db)
+            ceph_parsed, _ = await parse_and_upsert_ceph_osd(db)
+
+        log.info("Ceph collect completed: osd_map=%d ceph_osd=%d", osd_map_parsed, ceph_parsed)
+    except Exception as exc:
+        log.error("Ceph collect job failed: %s", exc)
 
 
 async def _disk_health_job():

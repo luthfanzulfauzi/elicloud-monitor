@@ -10,7 +10,7 @@ from .config import settings
 from .database import engine, get_db
 from .scheduler import scheduler, setup_scheduler
 from .security import get_current_user, hash_password
-from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router
+from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router, ceph_osd as ceph_osd_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -60,9 +60,14 @@ async def lifespan(app: FastAPI):
     await _seed_admin()
 
     from .services.smartctl_service import parse_and_upsert_all
+    from .services.lsblk_service import parse_and_upsert_lsblk
+    from .services.ceph_osd_service import parse_and_upsert_ceph_osd
     async for db in get_db():
         parsed, errors = await parse_and_upsert_all(db)
         log.info("Initial smartctl parse: %d parsed, %d errors", parsed, errors)
+        osd_map, _ = await parse_and_upsert_lsblk(db)
+        ceph_osd, _ = await parse_and_upsert_ceph_osd(db)
+        log.info("Initial ceph parse: osd_map=%d ceph_osd=%d", osd_map, ceph_osd)
         break
 
     setup_scheduler()
@@ -109,6 +114,7 @@ app.include_router(compute.router, prefix=PREFIX, **_protected)
 app.include_router(status.router, prefix=PREFIX, **_protected)
 app.include_router(disk_health_router.router, prefix=PREFIX, **_protected)
 app.include_router(storage_nodes_router.router, prefix=PREFIX, **_protected)
+app.include_router(ceph_osd_router.router, prefix=PREFIX, **_protected)
 
 
 @app.get("/")

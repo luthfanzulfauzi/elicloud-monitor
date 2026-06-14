@@ -29,5 +29,7 @@ class Settings(BaseSettings):
     PROMETHEUS_NODE_EXPORTER_PORT: int = 9100
     PROMETHEUS_SCRAPE_INTERVAL_SECONDS: int = 300
 
+    CEPH_COLLECT_INTERVAL_SECONDS: int = 3600
+
 
 settings = Settings()

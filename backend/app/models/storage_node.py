@@ -16,6 +16,7 @@ class StorageNode(Base):
     ssh_key_path: Mapped[str] = mapped_column(String, nullable=False)
     remote_dir: Mapped[str] = mapped_column(String, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_ceph_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_collected_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_collect_status: Mapped[str | None] = mapped_column(String, nullable=True)
     last_collect_error: Mapped[str | None] = mapped_column(Text, nullable=True)
