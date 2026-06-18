@@ -47,6 +47,10 @@ Thumbs.db
 # Query output dumps
 query_output/
 
+# Collected smartctl / lsblk / ceph-osd-df data files (generated on storage nodes, not tracked)
+smartctl/*.txt
+smartctl/*.json
+
 # Sensitive / scratch files
 ssh_keys/*
 !ssh_keys/.gitkeep
