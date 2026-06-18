@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func, cast, Date, or_
@@ -8,6 +9,7 @@ from ..models import Host, VM, PrimaryStorage, Volume, CollectionLog
 from ..schemas.dashboard import DashboardSummary, SyncInfo, TopHost
 from ..schemas.vm import VMTrendPoint
 from ..schemas.storage import ProvisioningPoint, ComputePoint
+from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -18,10 +20,18 @@ _USER_VM = or_(VM.vm_type == "UserVm", VM.vm_type.is_(None))
 
 
 @router.get("/summary", response_model=DashboardSummary)
-async def get_summary(db: AsyncSession = Depends(get_db)):
+async def get_summary(
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     total_hosts = (await db.execute(select(func.count(Host.id)))).scalar_one()
-    running = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.state == "Running"))).scalar_one()
-    stopped = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.state == "Stopped"))).scalar_one()
+
+    vm_scope = [_USER_VM]
+    if allowed_project_ids is not None:
+        vm_scope.append(VM.project_id.in_(allowed_project_ids))
+
+    running = (await db.execute(select(func.count(VM.id)).where(*vm_scope, VM.state == "Running"))).scalar_one()
+    stopped = (await db.execute(select(func.count(VM.id)).where(*vm_scope, VM.state == "Stopped"))).scalar_one()
 
     storages = (await db.execute(select(PrimaryStorage))).scalars().all()
     total_cap = sum(s.capacity_total or 0 for s in storages)
@@ -62,15 +72,19 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/vm-trend", response_model=list[VMTrendPoint])
-async def get_vm_trend(days: int = 30, db: AsyncSession = Depends(get_db)):
+async def get_vm_trend(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    rows = (
-        await db.execute(
-            select(cast(VM.zstack_created_at, Date).label("day"), func.count(VM.id).label("cnt"))
-            .where(VM.zstack_created_at >= since)
-            .group_by("day").order_by("day")
-        )
-    ).all()
+    q = (
+        select(cast(VM.zstack_created_at, Date).label("day"), func.count(VM.id).label("cnt"))
+        .where(VM.zstack_created_at >= since)
+    )
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
+    rows = (await db.execute(q.group_by("day").order_by("day"))).all()
     return [VMTrendPoint(date=str(r.day), count=r.cnt) for r in rows]
 
 
@@ -88,19 +102,23 @@ async def get_storage_trend(days: int = 30, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/compute-trend", response_model=list[ComputePoint])
-async def get_compute_trend(days: int = 30, db: AsyncSession = Depends(get_db)):
+async def get_compute_trend(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    rows = (
-        await db.execute(
-            select(
-                cast(VM.zstack_created_at, Date).label("day"),
-                func.sum(VM.vcpu_num).label("vcpu"),
-                func.sum(VM.memory_size).label("mem"),
-            )
-            .where(VM.zstack_created_at >= since)
-            .group_by("day").order_by("day")
+    q = (
+        select(
+            cast(VM.zstack_created_at, Date).label("day"),
+            func.sum(VM.vcpu_num).label("vcpu"),
+            func.sum(VM.memory_size).label("mem"),
         )
-    ).all()
+        .where(VM.zstack_created_at >= since)
+    )
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
+    rows = (await db.execute(q.group_by("day").order_by("day"))).all()
     return [ComputePoint(date=str(r.day), vcpu=int(r.vcpu or 0), ram_gb=round((r.mem or 0) / GB, 1)) for r in rows]
 
 

@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, ShieldCheck, Globe } from 'lucide-react'
 import {
   fetchUsers,
+  fetchProjects,
+  fetchResourceGroups,
+  fetchUserScope,
+  updateUserScope,
   createUser,
   updateUser,
   updateUserPermissions,
@@ -13,6 +17,7 @@ import {
   type UserStatus,
   type AppModule,
   type PermissionMap,
+  type DataScopeType,
   APP_MODULES,
   defaultPermissions,
 } from '@/lib/api'
@@ -106,6 +111,22 @@ function Avatar({ name }: { name: string }) {
   )
 }
 
+// ─── Data scope badge ─────────────────────────────────────────────────────────
+
+function ScopeBadge({ scopeType }: { scopeType: DataScopeType }) {
+  const config: Record<DataScopeType, { label: string; cls: string }> = {
+    global:         { label: 'Global',         cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    project:        { label: 'By Project',      cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+    resource_group: { label: 'By Group',        cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+  }
+  const { label, cls } = config[scopeType] ?? config.global
+  return (
+    <span className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
 // ─── Empty form ───────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
@@ -149,6 +170,19 @@ export default function Users() {
   // ── Delete confirmation ──
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // ── Scope dialog ──
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false)
+  const [scopeUser, setScopeUser] = useState<AppUser | null>(null)
+  const [scopeType, setScopeType] = useState<DataScopeType>('global')
+  const [scopeProjectIds, setScopeProjectIds] = useState<string[]>([])
+  const [scopeRgIds, setScopeRgIds] = useState<string[]>([])
+  const [savingScope, setSavingScope] = useState(false)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [rgSearch, setRgSearch] = useState('')
+
+  const { data: allProjects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
+  const { data: allGroups = [] } = useQuery({ queryKey: ['resource-groups'], queryFn: fetchResourceGroups })
+
   function openCreate() {
     setEditingUser(null)
     setForm(EMPTY_FORM)
@@ -161,6 +195,38 @@ export default function Users() {
     setForm({ name: user.name, email: user.email, role: user.role, status: user.status, password: '' })
     setSaveError(null)
     setUserDialogOpen(true)
+  }
+
+  async function openScope(user: AppUser) {
+    setScopeUser(user)
+    setScopeType(user.scope_type ?? 'global')
+    setScopeProjectIds([])
+    setScopeRgIds([])
+    setProjectSearch('')
+    setRgSearch('')
+    setScopeDialogOpen(true)
+    try {
+      const scope = await fetchUserScope(user.id)
+      setScopeType(scope.scope_type)
+      setScopeProjectIds(scope.project_ids)
+      setScopeRgIds(scope.resource_group_ids)
+    } catch { /* keep defaults */ }
+  }
+
+  async function handleSaveScope() {
+    if (!scopeUser) return
+    setSavingScope(true)
+    try {
+      await updateUserScope(scopeUser.id, {
+        scope_type: scopeType,
+        project_ids: scopeType === 'project' ? scopeProjectIds : [],
+        resource_group_ids: scopeType === 'resource_group' ? scopeRgIds : [],
+      })
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+      setScopeDialogOpen(false)
+    } finally {
+      setSavingScope(false)
+    }
   }
 
   function openPermissions(user: AppUser) {
@@ -288,7 +354,7 @@ export default function Users() {
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {['User', 'Email', 'Role', 'Status', 'Session', 'Last Login', 'Created', 'Actions'].map((h) => (
+                  {['User', 'Email', 'Role', 'Data Scope', 'Status', 'Session', 'Last Login', 'Created', 'Actions'].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500"
@@ -301,7 +367,7 @@ export default function Users() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {displayUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-[10px] text-slate-400">
+                    <td colSpan={9} className="px-4 py-10 text-center text-[10px] text-slate-400">
                       No users found.
                     </td>
                   </tr>
@@ -317,6 +383,9 @@ export default function Users() {
                       <td className="px-4 py-3 text-xs text-slate-500">{user.email}</td>
                       <td className="px-4 py-3">
                         <RoleBadge role={user.role} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <ScopeBadge scopeType={user.scope_type ?? 'global'} />
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={user.status === 'Active' ? 'success' : 'secondary'}>
@@ -352,6 +421,17 @@ export default function Users() {
                               >
                                 <ShieldCheck className="h-3.5 w-3.5" />
                               </Button>
+                              {user.role !== 'Admin' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-slate-400 hover:text-emerald-600"
+                                  title="Configure data scope"
+                                  onClick={() => openScope(user)}
+                                >
+                                  <Globe className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -482,6 +562,138 @@ export default function Users() {
               disabled={saving || !form.name.trim() || !form.email.trim() || (!editingUser && !form.password.trim())}
             >
               {saving ? 'Saving…' : editingUser ? 'Save Changes' : 'Add User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Data Scope Dialog ── */}
+      <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-emerald-500" />
+              Data Scope
+            </DialogTitle>
+            <DialogDescription>
+              {scopeUser && (
+                <>
+                  Restrict what data{' '}
+                  <span className="font-semibold text-slate-700">{scopeUser.name}</span>{' '}
+                  can see. <span className="font-semibold">Global</span> = all data;{' '}
+                  <span className="font-semibold">By Project</span> or{' '}
+                  <span className="font-semibold">By Group</span> = scoped to selected resources only.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Scope Type</Label>
+              <Select value={scopeType} onValueChange={(v) => setScopeType(v as DataScopeType)}>
+                <SelectTrigger className="text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global" className="text-xs">Global — see all data</SelectItem>
+                  <SelectItem value="project" className="text-xs">By Project — selected projects only</SelectItem>
+                  <SelectItem value="resource_group" className="text-xs">By Resource Group — selected groups only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {scopeType === 'project' && (
+              <div className="space-y-1.5">
+                <Label>Allowed Projects</Label>
+                <Input
+                  placeholder="Search projects…"
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                  {allProjects.filter((p) =>
+                    p.name.toLowerCase().includes(projectSearch.toLowerCase())
+                  ).length === 0 ? (
+                    <p className="px-3 py-6 text-center text-[10px] text-slate-400">
+                      {projectSearch ? `No projects matching "${projectSearch}"` : 'No projects found'}
+                    </p>
+                  ) : (
+                    allProjects
+                      .filter((p) => p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                      .map((p) => (
+                        <label key={p.id} className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5 hover:bg-sky-50">
+                          <input
+                            type="checkbox"
+                            checked={scopeProjectIds.includes(p.id)}
+                            onChange={() => setScopeProjectIds((prev) =>
+                              prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                            )}
+                            className="h-3.5 w-3.5 cursor-pointer accent-sky-600"
+                          />
+                          <span className="text-xs text-slate-700">{p.name}</span>
+                          <span className="ml-auto text-[10px] text-slate-400">{p.vm_count} VMs</span>
+                        </label>
+                      ))
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {scopeProjectIds.length} selected
+                  {projectSearch && ` · showing ${allProjects.filter((p) => p.name.toLowerCase().includes(projectSearch.toLowerCase())).length} of ${allProjects.length}`}
+                  {!projectSearch && ` of ${allProjects.length} total`}
+                </p>
+              </div>
+            )}
+
+            {scopeType === 'resource_group' && (
+              <div className="space-y-1.5">
+                <Label>Allowed Resource Groups</Label>
+                <Input
+                  placeholder="Search groups…"
+                  value={rgSearch}
+                  onChange={(e) => setRgSearch(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                  {allGroups.filter((g) =>
+                    g.name.toLowerCase().includes(rgSearch.toLowerCase())
+                  ).length === 0 ? (
+                    <p className="px-3 py-6 text-center text-[10px] text-slate-400">
+                      {rgSearch ? `No groups matching "${rgSearch}"` : 'No resource groups found'}
+                    </p>
+                  ) : (
+                    allGroups
+                      .filter((g) => g.name.toLowerCase().includes(rgSearch.toLowerCase()))
+                      .map((g) => (
+                        <label key={g.id} className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5 hover:bg-violet-50">
+                          <input
+                            type="checkbox"
+                            checked={scopeRgIds.includes(g.id)}
+                            onChange={() => setScopeRgIds((prev) =>
+                              prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]
+                            )}
+                            className="h-3.5 w-3.5 cursor-pointer accent-violet-600"
+                          />
+                          <span className="text-xs text-slate-700">{g.name}</span>
+                          <span className="ml-auto text-[10px] text-slate-400">{g.vm_count} VMs</span>
+                        </label>
+                      ))
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {scopeRgIds.length} selected
+                  {rgSearch && ` · showing ${allGroups.filter((g) => g.name.toLowerCase().includes(rgSearch.toLowerCase())).length} of ${allGroups.length}`}
+                  {!rgSearch && ` of ${allGroups.length} total`}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScopeDialogOpen(false)} disabled={savingScope}>Cancel</Button>
+            <Button onClick={handleSaveScope} disabled={savingScope}>
+              {savingScope ? 'Saving…' : 'Save Scope'}
             </Button>
           </DialogFooter>
         </DialogContent>

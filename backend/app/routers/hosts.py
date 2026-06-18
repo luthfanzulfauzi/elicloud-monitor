@@ -1,3 +1,4 @@
+import uuid
 import uuid as uuid_mod
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
@@ -11,6 +12,7 @@ from ..models import Host, VM, SnapshotHost
 from ..models.host_disk import HostDiskRecord
 from ..schemas.host import HostListItem, HostTrendPoint
 from ..schemas.host_disk import HostDiskSummary, HostDiskSummaryMap, DiskRefreshResult
+from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 
@@ -20,15 +22,31 @@ _USER_VM = or_(VM.vm_type == "UserVm", VM.vm_type.is_(None))
 
 
 @router.get("", response_model=list[HostListItem])
-async def list_hosts(state: str | None = Query(None), db: AsyncSession = Depends(get_db)):
+async def list_hosts(
+    state: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     q = select(Host)
     if state:
         q = q.where(Host.state == state)
+    if allowed_project_ids is not None:
+        allowed_host_ids = (await db.execute(
+            select(VM.host_id).where(
+                _USER_VM,
+                VM.project_id.in_(allowed_project_ids),
+                VM.host_id.isnot(None),
+            ).distinct()
+        )).scalars().all()
+        q = q.where(Host.id.in_(allowed_host_ids))
     hosts = (await db.execute(q)).scalars().all()
 
     result = []
     for h in hosts:
-        vm_count = (await db.execute(select(func.count(VM.id)).where(_USER_VM, VM.host_id == h.id))).scalar_one()
+        vm_q = select(func.count(VM.id)).where(_USER_VM, VM.host_id == h.id)
+        if allowed_project_ids is not None:
+            vm_q = vm_q.where(VM.project_id.in_(allowed_project_ids))
+        vm_count = (await db.execute(vm_q)).scalar_one()
         cpu_oc = round(h.cpu_allocated / h.cpu_total, 2) if h.cpu_total and h.cpu_allocated else None
         mem_oc = round(h.memory_allocated / h.memory_total, 2) if h.memory_total and h.memory_allocated else None
         result.append(HostListItem(

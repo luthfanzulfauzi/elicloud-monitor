@@ -103,7 +103,7 @@ Refer to `FRS.md` for the full directory structure and API specification.
 
 ---
 
-## Implementation Status (as of 2026-06-14)
+## Implementation Status (as of 2026-06-18)
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -124,6 +124,7 @@ Refer to `FRS.md` for the full directory structure and API specification.
 | Ceph OSD monitoring (lsblk + ceph osd df) | ✅ Done | `OsdMapping` + `CephOsdRecord` models; `lsblk_service.py` + `ceph_osd_service.py` services; `lsblk_collect.sh` + `ceph_osd_df_collect.sh` collectors on storage nodes; `/ceph-osd` router (`osd-map`, `osd-df`, `refresh`); APScheduler `ceph_collect` job; status derived from `reweight` (>0 → "active", 0 → "out"); only newest file parsed (all 11 nodes produce identical cluster-wide data) |
 | Unified Disk Health page (NVMe SMART + OSD + Ceph) | ✅ Done | `DiskHealth.tsx` single 17-column table: SMART metrics + OSD ID/Size from `OsdMapping` + Use%/Weight/PGs/Status from `CephOsdRecord`; client-side join via two Maps keyed on `hostname::nvme_device` and `osd_id`; no separate tabs; `OsdStatusBadge` handles "active"/"up"; Refresh fires both SMART and Ceph refresh mutations |
 | Executive Report export (PDF + XLSX + DOCX) | ✅ Done | `frontend/src/lib/export.ts`: `downloadExecutivePDF` (jsPDF), `downloadExecutiveXLSX` (ExcelJS), `downloadExecutiveDOCX` (docx library); all client-side; Reports page generates unified executive report with host/VM/storage/project/disk summary sections |
+| Data Scope (API access restriction by project / resource group) | ✅ Done | `scope_type` on AppUser; `user_project_scope` + `user_resource_group_scope` junction tables; `deps.py` `get_allowed_project_ids`; filtering on /vms, /projects, /resource-groups, /dashboard, /hosts; frontend `GlobalRoute` + Sidebar filtering + VMs infra section hidden for scoped users; scope management dialog in Users page |
 | `/reports` backend router (server-side scheduled reports) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
 | Deployment docs | ❌ Pending | Phase 4 |
 

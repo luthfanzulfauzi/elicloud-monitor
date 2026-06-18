@@ -143,6 +143,17 @@ Monitor NVMe disk health on storage servers by collecting and parsing smartctl o
 - Double-click delete confirmation to prevent accidental deletion
 - Current user's role and permissions gate UI visibility across all modules
 
+### F-15: Data Scope (API Access Restriction)
+Restrict which infrastructure data each user can see, independent of their role:
+- Three scope types: `global` (all data), `project` (assigned projects only), `resource_group` (assigned resource groups only)
+- Backend enforces filtering at the API layer — not frontend-only
+- `UserProjectScope` and `UserResourceGroupScope` junction tables in app DB
+- `GET /users/{id}/scope` and `PUT /users/{id}/scope` endpoints for Admin management
+- Data Scope dialog in Users page: scope type selector + searchable checkbox list for projects/RGs
+- Scoped users see only the VMs page; all other sidebar items and routes are restricted
+- Infrastructure VMs section hidden from scoped users
+- Admin users always retain global access regardless of configured scope
+
 ---
 
 ## 7. Non-Functional Requirements
@@ -181,9 +192,11 @@ Monitor NVMe disk health on storage servers by collecting and parsing smartctl o
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
 | Phase 0 | Documentation (PRD, ERD, FRD, FRS, CLAUDE.md) | ✅ Complete |
-| Phase 1 | Backend API + ZStack data collector | ⚠️ Mostly Complete — missing: `/reports` router, Alembic migrations, auth endpoints |
+| Phase 1 | Backend API + ZStack data collector | ✅ Complete |
 | Phase 2 | Frontend dashboard — all pages including Users, Reports with provisioning trends | ✅ Complete |
 | Phase 2.5 | User authentication — Login page, JWT auth, protected routes, role/permission gating | ✅ Complete |
-| Phase 2.6 | Disk Health Monitoring — SCP collection, smartctl parser, StorageNode registry, DiskHealth page | 🔲 Pending |
+| Phase 2.6 | Disk Health Monitoring — SCP collection, smartctl parser, StorageNode registry, DiskHealth page + Ceph OSD monitoring + Host filesystem monitoring + Executive Report export | ✅ Complete |
+| Phase 2.7 | VM → Project association via ZQL (`query accountresourceref`); ApplianceVm/UserVm separation; stale VM cleanup | ✅ Complete |
+| Phase 2.8 | Data Scope — API access restriction by project / resource group; scope management UI in Users page | ✅ Complete |
 | Phase 3 | Reporting engine + export (backend-driven CSV/PDF) | 🔲 Pending |
-| Phase 4 | Docker packaging + deployment guide | ⚠️ Partially Complete — Compose + Dockerfiles done; Alembic init + deployment docs missing |
+| Phase 4 | Docker packaging + deployment guide | ⚠️ Partially Complete — Compose + Dockerfiles done; deployment docs missing |

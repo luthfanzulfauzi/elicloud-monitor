@@ -1,8 +1,8 @@
 # Functional Requirements Specification (FRS)
 ## EliCloud Monitor
 
-**Version:** 1.3  
-**Date:** 2026-06-14  
+**Version:** 1.4  
+**Date:** 2026-06-18  
 
 ---
 
@@ -48,6 +48,7 @@ elicloudmonitor/
 │   │   ├── config.py             # Settings from env (incl. ADMIN_DEFAULT_EMAIL/PASSWORD)
 │   │   ├── database.py           # DB session setup
 │   │   ├── security.py           # hash_password, verify_password, create_access_token, get_current_user
+│   │   ├── deps.py               # Shared FastAPI dependencies: get_allowed_project_ids (data scope filter)
 │   │   ├── models/               # SQLAlchemy ORM models
 │   │   │   ├── host.py
 │   │   │   ├── storage.py
@@ -63,7 +64,8 @@ elicloudmonitor/
 │   │   │   ├── disk_health.py    # DiskHealthRecord (parsed smartctl)
 │   │   │   ├── host_disk.py      # HostDiskRecord (Prometheus node_exporter filesystem metrics)
 │   │   │   ├── osd_mapping.py    # OsdMapping (nvme_device → osd_id from lsblk JSON)
-│   │   │   └── ceph_osd.py       # CephOsdRecord (ceph osd df metrics per OSD ID)
+│   │   │   ├── ceph_osd.py       # CephOsdRecord (ceph osd df metrics per OSD ID)
+│   │   │   └── user_scope.py     # UserProjectScope + UserResourceGroupScope (data scope junction tables)
 │   │   ├── schemas/              # Pydantic request/response schemas
 │   │   ├── routers/              # FastAPI route handlers
 │   │   │   ├── auth.py           # POST /auth/login, GET /auth/me (public)
@@ -231,6 +233,8 @@ Query params for `/vms`:
 | GET | `/users/{id}` | Single user detail |
 | PUT | `/users/{id}` | Update user (name, email, role, status) |
 | PUT | `/users/{id}/permissions` | Update user's permission matrix |
+| GET | `/users/{id}/scope` | Get user's data scope (`scope_type`, `project_ids`, `resource_group_ids`) |
+| PUT | `/users/{id}/scope` | Set user's data scope type and assignments (Admin only; cannot change Admin users' scope) |
 | DELETE | `/users/{id}` | Delete a user |
 
 #### Storage Nodes

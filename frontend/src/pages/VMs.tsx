@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
 import { fetchVMs, fetchResourceGroups, fetchInfraVMs, type VM, type VolumeInfo } from '@/lib/api'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -162,9 +163,16 @@ export default function VMs() {
   const [infraPage, setInfraPage] = useState(1)
   const [infraSearch, setInfraSearch] = useState('')
 
+  const { data: currentUser } = useCurrentUser()
+  const isScoped = currentUser?.scope_type === 'project' || currentUser?.scope_type === 'resource_group'
+
   const { data: vms, isLoading } = useQuery({ queryKey: ['vms'], queryFn: fetchVMs })
   const { data: resourceGroups = [] } = useQuery({ queryKey: ['resource-groups'], queryFn: fetchResourceGroups })
-  const { data: infraVMs = [], isLoading: infraLoading } = useQuery({ queryKey: ['infra-vms'], queryFn: fetchInfraVMs })
+  const { data: infraVMs = [], isLoading: infraLoading } = useQuery({
+    queryKey: ['infra-vms'],
+    queryFn: fetchInfraVMs,
+    enabled: !isScoped,
+  })
 
   const hostOptions = useMemo(
     () => [...new Set((vms ?? []).map((v) => v.host).filter(Boolean) as string[])].sort(),
@@ -392,8 +400,8 @@ export default function VMs() {
         </CardContent>
       </Card>
 
-      {/* Infrastructure VMs */}
-      <div className="space-y-2">
+      {/* Infrastructure VMs — hidden for scoped users */}
+      {!isScoped && <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-700">Infrastructure VMs</h2>
@@ -475,7 +483,7 @@ export default function VMs() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </div>}
     </div>
   )
 }

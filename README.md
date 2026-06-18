@@ -45,6 +45,7 @@ A read-only internal web dashboard and reporting tool for **ZStack private cloud
 | F-12 | **Ceph OSD Monitoring** | lsblk NVMe↔OSD mapping + `ceph osd df` per-OSD utilization (Use%, Weight, PGs, Status) — collected via SCP, shown inline in the Disk Health table |
 | F-13 | **Host Filesystem Monitoring** | Per-mountpoint disk usage scraped from Prometheus node_exporter on each host; shown on Hosts page |
 | F-14 | **Executive Report Export** | Executive summary report (PDF, XLSX, DOCX) covering hosts, VMs, storage, and NVMe disk health |
+| F-15 | **Data Scope** | Per-user API access restriction by project or resource group — scoped users see only their assigned VMs; enforced at the backend API layer |
 
 ---
 
@@ -291,6 +292,8 @@ Search bar filters across name and IP. State/project dropdowns narrow results. *
 
 ZStack-internal appliance VMs (vRouters, Load Balancers, etc.) displayed in a separate section below. These are **not counted** in running/stopped/total VM statistics.
 
+> **Data Scope note:** Users with `project` or `resource_group` scope see only the VMs belonging to their assigned projects. The Infrastructure VMs section is hidden entirely for scoped users. All other pages (Dashboard, Hosts, Storage, etc.) are also restricted — scoped users see only the Virtual Machines page.
+
 | Column | Description |
 |--------|-------------|
 | Type | Badge: vRouter (violet) / LB (amber) / Replication (cyan) / Appliance (slate) |
@@ -413,6 +416,7 @@ Full user lifecycle management. Non-Admin users are redirected to `/`.
 | Email | Login email |
 | Role | Admin (violet) / Operator (amber) / Viewer (slate) |
 | Status | Active / Inactive |
+| Data Scope | **Global** (emerald) — all data; **By Project** (sky) — assigned projects only; **By Group** (violet) — assigned resource groups only |
 | Session | Live session status — **Online** (green dot, active <5 min), **Idle** (amber dot, 5 min–8 hr), **Offline** (gray dot, >8 hr or never) |
 | Last Login | Timestamp of the most recent successful login |
 | Created At | Account creation date |
@@ -421,6 +425,7 @@ Full user lifecycle management. Non-Admin users are redirected to `/`.
 
 - **Edit** (pencil icon) — name, email, role, status, optional password reset
 - **Permissions** (shield icon) — per-module View/Manage matrix
+- **Data Scope** (globe icon) — select scope type (`Global` / `By Project` / `By Resource Group`) and assign specific projects or resource groups; searchable list; not available for Admin users
 - **Delete** (trash icon) — double-click to arm, then click again to confirm
 
 #### Role defaults
@@ -566,6 +571,20 @@ If collection succeeds, the **Last Collected** and **Status** columns update, an
 2. Enter a new password in the optional Password field
 3. Save — takes effect on the next login attempt
 
+#### Setting a user's data scope
+
+By default all users have `global` scope and can see all infrastructure data. To restrict a user to specific projects or resource groups:
+
+1. Click the **globe icon** on the user row (not available for Admin users)
+2. Select a scope type:
+   - **Global** — unrestricted; sees all data (default)
+   - **By Project** — restrict to specific ZStack projects; check each project in the list
+   - **By Resource Group** — restrict to projects within specific resource groups; check each group in the list
+3. Use the search box to filter long project/resource-group lists
+4. Click **Save**
+
+Scoped users will only see the **Virtual Machines** page and their VM list is filtered to their assigned projects. All other pages are hidden.
+
 #### Deleting a user
 
 Click the **trash icon** once to arm (turns red). Click again within 3 seconds to confirm. This is irreversible.
@@ -671,6 +690,7 @@ elicloudmonitor/
 │       ├── config.py            # All settings from env vars
 │       ├── database.py          # Async SQLAlchemy engine + session
 │       ├── security.py          # JWT, bcrypt, get_current_user dependency
+│       ├── deps.py              # Shared dependencies: get_allowed_project_ids (data scope filter)
 │       ├── scheduler.py         # APScheduler — ZStack sync + disk health jobs
 │       ├── models/
 │       │   ├── host.py          # Physical host
@@ -688,7 +708,8 @@ elicloudmonitor/
 │       │   ├── storage_node.py  # SSH config registry for storage nodes
 │       │   ├── host_disk.py     # Host filesystem disk usage from Prometheus
 │       │   ├── osd_mapping.py   # NVMe↔OSD mapping from lsblk
-│       │   └── ceph_osd.py      # Ceph OSD utilization from ceph osd df
+│       │   ├── ceph_osd.py      # Ceph OSD utilization from ceph osd df
+│       │   └── user_scope.py    # UserProjectScope + UserResourceGroupScope junction tables
 │       ├── schemas/             # Pydantic v2 request/response schemas
 │       ├── routers/
 │       │   ├── auth.py          # POST /auth/login, GET /auth/me
@@ -828,6 +849,8 @@ All endpoints except `POST /auth/login` require `Authorization: Bearer <token>`.
 | GET | `/users/{id}` | Single user |
 | PUT | `/users/{id}` | Update user (name, email, role, status, password) |
 | PUT | `/users/{id}/permissions` | Update permission matrix |
+| GET | `/users/{id}/scope` | Get user's data scope (`scope_type`, `project_ids`, `resource_group_ids`) |
+| PUT | `/users/{id}/scope` | Set user's data scope type and project/resource-group assignments (Admin only) |
 | DELETE | `/users/{id}` | Delete user |
 
 #### Disk Health

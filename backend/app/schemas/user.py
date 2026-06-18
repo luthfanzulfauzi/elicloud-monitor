@@ -61,6 +61,19 @@ class AppUserOut(BaseModel):
     role: str
     status: str
     permissions: dict
+    scope_type: str
     created_at: datetime
     last_login: datetime | None
     last_active_at: datetime | None
+
+
+class UserScopeOut(BaseModel):
+    scope_type: str
+    project_ids: list[UUID]
+    resource_group_ids: list[UUID]
+
+
+class UserScopeUpdate(BaseModel):
+    scope_type: str  # "global" | "project" | "resource_group"
+    project_ids: list[UUID] = []
+    resource_group_ids: list[UUID] = []

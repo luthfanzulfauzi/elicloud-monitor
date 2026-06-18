@@ -1,8 +1,8 @@
 # Entity Relationship Diagram (ERD)
 ## EliCloud Monitor
 
-**Version:** 1.3  
-**Date:** 2026-06-14  
+**Version:** 1.4  
+**Date:** 2026-06-18  
 
 ---
 
@@ -22,7 +22,9 @@
 | `SnapshotHost` | Point-in-time metrics snapshot for a Host |
 | `SnapshotStorage` | Point-in-time metrics snapshot for Storage |
 | `CollectionLog` | Audit log of each API data collection run |
-| `AppUser` | Application user with role and per-module permissions (not a ZStack entity) |
+| `AppUser` | Application user with role, per-module permissions, and data scope (not a ZStack entity) |
+| `UserProjectScope` | Join table: AppUser <-> Project (for `scope_type = 'project'` users) |
+| `UserResourceGroupScope` | Join table: AppUser <-> ResourceGroup (for `scope_type = 'resource_group'` users) |
 | `StorageNode` | Registry of storage servers that expose smartctl output via SCP (app-managed) |
 | `DiskHealthRecord` | Latest parsed NVMe SMART metrics per (hostname, nvme_device) pair (app-managed) |
 | `HostDiskRecord` | Latest Prometheus-scraped filesystem utilization per (host, mountpoint) pair (app-managed) |
@@ -218,9 +220,30 @@ AppUser {
     status          VARCHAR     NOT NULL      -- Active | Inactive
     password_hash   VARCHAR                   -- bcrypt hash
     permissions     JSONB       NOT NULL      -- PermissionMap (see below)
+    scope_type      VARCHAR     NOT NULL      -- global | project | resource_group (default: global)
     created_at      TIMESTAMP   NOT NULL
     last_login      TIMESTAMP                 -- nullable; set on each successful login
     last_active_at  TIMESTAMP                 -- nullable; updated on every GET /auth/me call
+}
+```
+
+### UserProjectScope (Join Table)
+```
+UserProjectScope {
+    id              UUID    PK
+    user_id         UUID    FK -> AppUser (CASCADE DELETE)
+    project_id      UUID    FK -> Project (CASCADE DELETE)
+    UNIQUE(user_id, project_id)
+}
+```
+
+### UserResourceGroupScope (Join Table)
+```
+UserResourceGroupScope {
+    id                  UUID    PK
+    user_id             UUID    FK -> AppUser (CASCADE DELETE)
+    resource_group_id   UUID    FK -> ResourceGroup (CASCADE DELETE)
+    UNIQUE(user_id, resource_group_id)
 }
 ```
 
@@ -350,19 +373,23 @@ CephOsdRecord {
 ## 3. Relationships
 
 ```
-Host            ||--o{ VM                   : "runs"
-Host            ||--o{ SnapshotHost         : "has snapshots"
-Host            ||--o{ HostDiskRecord       : "has filesystem records"
-PrimaryStorage  ||--o{ Volume               : "stores"
-PrimaryStorage  ||--o{ SnapshotStorage      : "has snapshots"
-Project         ||--o{ VM                   : "owns"
-Project         ||--o{ ResourceGroupProject : "belongs to"
-ResourceGroup   ||--o{ ResourceGroupProject : "contains"
-VM              ||--o{ Volume               : "has"
-VM              ||--o{ Tag                  : "has"
-VM              ||--o| EIP                  : "may have"
-StorageNode     ||--o{ DiskHealthRecord     : "has disk records"
-OsdMapping      }|--|| CephOsdRecord        : "osd_id join (client-side)"
+Host            ||--o{ VM                        : "runs"
+Host            ||--o{ SnapshotHost              : "has snapshots"
+Host            ||--o{ HostDiskRecord            : "has filesystem records"
+PrimaryStorage  ||--o{ Volume                    : "stores"
+PrimaryStorage  ||--o{ SnapshotStorage           : "has snapshots"
+Project         ||--o{ VM                        : "owns"
+Project         ||--o{ ResourceGroupProject      : "belongs to"
+Project         ||--o{ UserProjectScope          : "scoped to users"
+ResourceGroup   ||--o{ ResourceGroupProject      : "contains"
+ResourceGroup   ||--o{ UserResourceGroupScope    : "scoped to users"
+AppUser         ||--o{ UserProjectScope          : "has project scope"
+AppUser         ||--o{ UserResourceGroupScope    : "has resource group scope"
+VM              ||--o{ Volume                    : "has"
+VM              ||--o{ Tag                       : "has"
+VM              ||--o| EIP                       : "may have"
+StorageNode     ||--o{ DiskHealthRecord          : "has disk records"
+OsdMapping      }|--|| CephOsdRecord             : "osd_id join (client-side)"
 ```
 
 > `OsdMapping` and `CephOsdRecord` have no direct FK relationship in the DB. The frontend joins them client-side: `OsdMapping.osd_id → CephOsdRecord.osd_id`.
@@ -431,3 +458,6 @@ OsdMapping      }|--|| CephOsdRecord        : "osd_id join (client-side)"
 - `StorageNode` is application-managed — full CRUD allowed in app DB; SSH credentials point to files on the monitor VM filesystem
 - `DiskHealthRecord` is upserted on each collection run keyed on `(hostname, nvme_device)` — always reflects the latest smartctl parse result; raw output preserved for debugging
 - `DiskHealthRecord.tbw` is a derived/calculated column stored for query convenience — recalculated on each parse
+- `AppUser.scope_type` controls data visibility: `global` = see all data; `project` = see only VMs/projects in `UserProjectScope`; `resource_group` = see only projects within groups in `UserResourceGroupScope`. Admin users always have `global` scope regardless of this field
+- `UserProjectScope` and `UserResourceGroupScope` are application-managed — full CRUD allowed in app DB. Both tables are resolved to a set of `project_id` values at query time by the `get_allowed_project_ids` FastAPI dependency
+- Scoped users (non-global) have restricted UI access: only the Virtual Machines page is shown in the sidebar; infra VMs section is hidden; all non-VM routes redirect to `/vms`

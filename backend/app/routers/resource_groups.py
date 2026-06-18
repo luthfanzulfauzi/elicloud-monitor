@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from ..database import get_db
 from ..models import ResourceGroup, ResourceGroupProject, Project, VM
 from ..schemas.resource_group import ResourceGroupCreate, ResourceGroupUpdate, ResourceGroupOut
+from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/resource-groups", tags=["resource-groups"])
 
@@ -13,12 +15,18 @@ TB = 1024 ** 4
 GB = 1024 ** 3
 
 
-async def _enrich(rg: ResourceGroup, db: AsyncSession) -> ResourceGroupOut:
+async def _enrich(
+    rg: ResourceGroup,
+    db: AsyncSession,
+    allowed_project_ids: set[uuid.UUID] | None = None,
+) -> ResourceGroupOut:
     membership_ids = [m.project_id for m in rg.project_memberships]
     proj_names: list[str] = []
     resolved_ids: list = []
     vms: list[VM] = []
     for pid in membership_ids:
+        if allowed_project_ids is not None and pid not in allowed_project_ids:
+            continue
         proj = (await db.execute(
             select(Project).options(selectinload(Project.vms).selectinload(VM.volumes))
             .where(Project.id == pid)
@@ -45,11 +53,17 @@ async def _enrich(rg: ResourceGroup, db: AsyncSession) -> ResourceGroupOut:
 
 
 @router.get("", response_model=list[ResourceGroupOut])
-async def list_groups(db: AsyncSession = Depends(get_db)):
+async def list_groups(
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     groups = (await db.execute(
         select(ResourceGroup).options(selectinload(ResourceGroup.project_memberships))
     )).scalars().all()
-    return [await _enrich(g, db) for g in groups]
+    # For scoped users: only return groups that contain at least one allowed project
+    if allowed_project_ids is not None:
+        groups = [g for g in groups if any(m.project_id in allowed_project_ids for m in g.project_memberships)]
+    return [await _enrich(g, db, allowed_project_ids) for g in groups]
 
 
 @router.post("", response_model=ResourceGroupOut, status_code=status.HTTP_201_CREATED)
@@ -65,14 +79,22 @@ async def create_group(body: ResourceGroupCreate, db: AsyncSession = Depends(get
 
 
 @router.get("/{group_id}", response_model=ResourceGroupOut)
-async def get_group(group_id: str, db: AsyncSession = Depends(get_db)):
+async def get_group(
+    group_id: str,
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
     rg = (await db.execute(
         select(ResourceGroup).options(selectinload(ResourceGroup.project_memberships))
         .where(ResourceGroup.id == group_id)
     )).scalar_one_or_none()
     if not rg:
         raise HTTPException(status_code=404, detail="Resource group not found")
-    return await _enrich(rg, db)
+    if allowed_project_ids is not None and not any(
+        m.project_id in allowed_project_ids for m in rg.project_memberships
+    ):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await _enrich(rg, db, allowed_project_ids)
 
 
 @router.put("/{group_id}", response_model=ResourceGroupOut)

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, cast, Date
@@ -10,6 +11,7 @@ from ..database import get_db
 from ..models import VM, Volume, Project
 from ..schemas.vm import VMOut, VMTrendPoint, VolumeInfo, InfraVMOut
 from ..schemas.storage import ComputePoint
+from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/vms", tags=["vms"])
 
@@ -85,17 +87,17 @@ def _build_vm_out(v: VM) -> VMOut:
     )
 
 
-async def _vm_trend_query(start_date, end_date, db):
+async def _vm_trend_query(start_date, end_date, db, allowed_project_ids=None):
     since = datetime.fromisoformat(start_date) if start_date else datetime.now(timezone.utc) - timedelta(days=30)
     until = (datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59, microsecond=999999)
              if end_date else datetime.now(timezone.utc))
-    rows = (
-        await db.execute(
-            select(cast(VM.zstack_created_at, Date).label("day"), func.count(VM.id).label("cnt"))
-            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
-            .group_by("day").order_by("day")
-        )
-    ).all()
+    q = (
+        select(cast(VM.zstack_created_at, Date).label("day"), func.count(VM.id).label("cnt"))
+        .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
+    )
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
+    rows = (await db.execute(q.group_by("day").order_by("day"))).all()
     return [VMTrendPoint(date=str(r.day), count=r.cnt) for r in rows]
 
 
@@ -106,12 +108,15 @@ async def list_vms(
     page: int = Query(1, ge=1),
     per_page: int = Query(2000, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
     q = select(VM).options(
         selectinload(VM.host),
         selectinload(VM.volumes).selectinload(Volume.primary_storage),
         selectinload(VM.project),
     ).where(_USER_VM)
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
     if state:
         q = q.where(VM.state == state)
     if search:
@@ -125,7 +130,11 @@ async def list_vms(
 async def list_infra_vms(
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
+    # Infra VMs are global infrastructure — scoped users have no visibility into them
+    if allowed_project_ids is not None:
+        return []
     q = (
         select(VM)
         .options(selectinload(VM.host), selectinload(VM.project))
@@ -158,8 +167,9 @@ async def vm_trend(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
-    return await _vm_trend_query(start_date, end_date, db)
+    return await _vm_trend_query(start_date, end_date, db, allowed_project_ids)
 
 
 @router.get("/created-by-period", response_model=list[VMTrendPoint])
@@ -167,8 +177,9 @@ async def vm_created_by_period(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
-    return await _vm_trend_query(start_date, end_date, db)
+    return await _vm_trend_query(start_date, end_date, db, allowed_project_ids)
 
 
 @router.get("/created-in-range", response_model=list[VMOut])
@@ -176,24 +187,24 @@ async def vms_created_in_range(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
     """Return full VM records for VMs created within the date range."""
     since = datetime.fromisoformat(start_date) if start_date else datetime.now(timezone.utc) - timedelta(days=30)
     until = datetime.fromisoformat(end_date) if end_date else datetime.now(timezone.utc)
-    # extend end to include the full end day
     until_inclusive = until.replace(hour=23, minute=59, second=59) if until.hour == 0 else until
-    vms = (
-        await db.execute(
-            select(VM)
-            .options(
-                selectinload(VM.host),
-                selectinload(VM.volumes).selectinload(Volume.primary_storage),
-                selectinload(VM.project),
-            )
-            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until_inclusive)
-            .order_by(VM.zstack_created_at.desc())
+    q = (
+        select(VM)
+        .options(
+            selectinload(VM.host),
+            selectinload(VM.volumes).selectinload(Volume.primary_storage),
+            selectinload(VM.project),
         )
-    ).scalars().all()
+        .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until_inclusive)
+    )
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
+    vms = (await db.execute(q.order_by(VM.zstack_created_at.desc()))).scalars().all()
     return [_build_vm_out(v) for v in vms]
 
 
@@ -202,19 +213,20 @@ async def compute_trend(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
 ):
     since = datetime.fromisoformat(start_date) if start_date else datetime.now(timezone.utc) - timedelta(days=30)
     until = (datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59, microsecond=999999)
              if end_date else datetime.now(timezone.utc))
-    rows = (
-        await db.execute(
-            select(
-                cast(VM.zstack_created_at, Date).label("day"),
-                func.sum(VM.vcpu_num).label("vcpu"),
-                func.sum(VM.memory_size).label("mem"),
-            )
-            .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
-            .group_by("day").order_by("day")
+    q = (
+        select(
+            cast(VM.zstack_created_at, Date).label("day"),
+            func.sum(VM.vcpu_num).label("vcpu"),
+            func.sum(VM.memory_size).label("mem"),
         )
-    ).all()
+        .where(_USER_VM, VM.zstack_created_at >= since, VM.zstack_created_at <= until)
+    )
+    if allowed_project_ids is not None:
+        q = q.where(VM.project_id.in_(allowed_project_ids))
+    rows = (await db.execute(q.group_by("day").order_by("day"))).all()
     return [ComputePoint(date=str(r.day), vcpu=int(r.vcpu or 0), ram_gb=round((r.mem or 0) / GB, 1)) for r in rows]

@@ -1,8 +1,8 @@
 # Functional Requirements Document (FRD)
 ## EliCloud Monitor
 
-**Version:** 1.3  
-**Date:** 2026-06-14  
+**Version:** 1.4  
+**Date:** 2026-06-18  
 
 ---
 
@@ -210,6 +210,28 @@ EliCloud Monitor consists of three layers:
 | FR-11.11 | System shall allow editing a user's permission matrix independently of their role |
 | FR-11.12 | System shall allow deleting users with a double-click confirmation pattern (arm then confirm) |
 | FR-11.13 | Dashboard shall display summary stats: total users, active users, inactive users, admin count |
+
+---
+
+### FR-11C: Data Scope (API Access Restriction)
+
+This sub-feature extends User Management with a data scope control that restricts which infrastructure data a user can see via the API and UI.
+
+| ID | Requirement |
+|----|-------------|
+| FR-11C.1 | Each application user shall have a `scope_type` attribute with one of three values: `global`, `project`, or `resource_group` |
+| FR-11C.2 | Users with `scope_type = global` shall see all infrastructure data (same behavior as before this feature) |
+| FR-11C.3 | Users with `scope_type = project` shall see only VMs, projects, resource groups, and dashboard statistics belonging to their assigned projects |
+| FR-11C.4 | Users with `scope_type = resource_group` shall see only data belonging to projects within their assigned resource groups |
+| FR-11C.5 | Admin users shall always have unrestricted (`global`) access regardless of `scope_type` — their scope cannot be changed |
+| FR-11C.6 | The backend shall enforce data filtering at the API layer via a shared dependency (`get_allowed_project_ids`) — never rely on frontend-only filtering for access control |
+| FR-11C.7 | The `GET /vms/infrastructure` endpoint shall return an empty list for all scoped (non-global) users |
+| FR-11C.8 | The `GET /hosts` endpoint shall return only hosts that run at least one VM in the user's allowed project set |
+| FR-11C.9 | System shall allow Admin users to set or change any user's data scope type and their associated project or resource group assignments |
+| FR-11C.10 | The Users page shall display each user's current data scope as a color-coded badge (Global = emerald, By Project = sky, By Group = violet) |
+| FR-11C.11 | The Users page shall provide a Data Scope dialog for Admin users to select scope type and assign specific projects or resource groups, with a search field to filter long lists |
+| FR-11C.12 | Scoped users (project or resource_group scope) shall see only the Virtual Machines page in the UI sidebar — Dashboard, Hosts, Storage, Projects, Resource Groups, Reports, and Disk Health shall be hidden and navigating to those routes shall redirect to `/vms` |
+| FR-11C.13 | Scoped users shall not see the Infrastructure VMs section on the VMs page |
 
 ---
 

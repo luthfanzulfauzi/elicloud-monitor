@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePermission } from '@/hooks/usePermission'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -69,6 +70,12 @@ function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; ic
 
 export default function Sidebar() {
   const { view: canViewUsers } = usePermission('User Management')
+  const { data: currentUser } = useCurrentUser()
+  const isScoped = currentUser?.scope_type === 'project' || currentUser?.scope_type === 'resource_group'
+
+  const visibleNavItems = isScoped
+    ? navItems.filter((item) => item.to === '/vms')
+    : navItems
 
   return (
     <aside
@@ -106,15 +113,15 @@ export default function Sidebar() {
           className="mb-1.5 px-5 text-[9px] font-semibold uppercase tracking-widest"
           style={{ color: '#2d4a6b' }}
         >
-          Infrastructure
+          {isScoped ? 'My Resources' : 'Infrastructure'}
         </p>
         <ul className="space-y-0.5 px-3">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
         </ul>
 
-        {canViewUsers && (
+        {!isScoped && canViewUsers && (
           <>
             <div className="mx-4 my-4 border-t" style={{ borderColor: '#1a2d44' }} />
             <p

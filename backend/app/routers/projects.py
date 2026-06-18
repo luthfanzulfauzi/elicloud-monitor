@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from ..database import get_db
 from ..models import Project, VM
 from ..schemas.project import ProjectOut, ProjectQuota
+from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -29,10 +31,14 @@ def _parse_quota(raw: dict | None) -> ProjectQuota | None:
 
 
 @router.get("", response_model=list[ProjectOut])
-async def list_projects(db: AsyncSession = Depends(get_db)):
-    projects = (await db.execute(
-        select(Project).options(selectinload(Project.vms).selectinload(VM.volumes))
-    )).scalars().all()
+async def list_projects(
+    db: AsyncSession = Depends(get_db),
+    allowed_project_ids: set[uuid.UUID] | None = Depends(get_allowed_project_ids),
+):
+    q = select(Project).options(selectinload(Project.vms).selectinload(VM.volumes))
+    if allowed_project_ids is not None:
+        q = q.where(Project.id.in_(allowed_project_ids))
+    projects = (await db.execute(q)).scalars().all()
 
     result = []
     for p in projects:
