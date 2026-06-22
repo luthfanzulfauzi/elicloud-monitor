@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models.ceph_osd import CephOsdRecord
+from ..models.ceph_osd import CephOsdRecord, CephOsdSnapshot
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ async def parse_and_upsert_ceph_osd(db: AsyncSession) -> tuple[int, int]:
         try:
             records = _parse_ceph_osd_df_file(path)
             for record in records:
+                # Upsert latest state
                 stmt = (
                     pg_insert(CephOsdRecord)
                     .values(**record)
@@ -129,6 +130,20 @@ async def parse_and_upsert_ceph_osd(db: AsyncSession) -> tuple[int, int]:
                     )
                 )
                 await db.execute(stmt)
+
+                # Append to history
+                await db.execute(
+                    pg_insert(CephOsdSnapshot).values(
+                        osd_id=record["osd_id"],
+                        utilization=record["utilization"],
+                        kb_used=record["kb_used"],
+                        kb_total=record["kb_total"],
+                        crush_weight=record["crush_weight"],
+                        pgs=record["pgs"],
+                        status=record["status"],
+                        collected_at=record["collected_at"],
+                    )
+                )
                 parsed += 1
         except Exception as exc:
             log.error("Error processing %s: %s", path.name, exc)

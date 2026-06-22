@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, BigInteger, Float, DateTime, UniqueConstraint, func
+from sqlalchemy import String, Integer, BigInteger, Float, DateTime, Index, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
@@ -26,4 +26,23 @@ class CephOsdRecord(Base):
 
     __table_args__ = (
         UniqueConstraint("osd_id", name="uq_ceph_osd_id"),
+    )
+
+
+class CephOsdSnapshot(Base):
+    """Append-only history of Ceph OSD utilization — one row per OSD per collection run."""
+    __tablename__ = "ceph_osd_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    osd_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
+    kb_used: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    kb_total: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    crush_weight: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pgs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str | None] = mapped_column(String, nullable=True)
+    collected_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_ceph_osd_snapshots_osd_collected", "osd_id", "collected_at"),
     )

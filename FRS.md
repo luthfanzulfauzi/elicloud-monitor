@@ -64,7 +64,7 @@ elicloudmonitor/
 │   │   │   ├── disk_health.py    # DiskHealthRecord (parsed smartctl)
 │   │   │   ├── host_disk.py      # HostDiskRecord (Prometheus node_exporter filesystem metrics)
 │   │   │   ├── osd_mapping.py    # OsdMapping (nvme_device → osd_id from lsblk JSON)
-│   │   │   ├── ceph_osd.py       # CephOsdRecord (ceph osd df metrics per OSD ID)
+│   │   │   ├── ceph_osd.py       # CephOsdRecord (latest ceph osd df per OSD) + CephOsdSnapshot (append-only utilization history)
 │   │   │   └── user_scope.py     # UserProjectScope + UserResourceGroupScope (data scope junction tables)
 │   │   ├── schemas/              # Pydantic request/response schemas
 │   │   ├── routers/              # FastAPI route handlers
@@ -79,7 +79,7 @@ elicloudmonitor/
 │   │   │   ├── dashboard.py
 │   │   │   ├── storage_nodes.py  # CRUD for StorageNode registry
 │   │   │   ├── disk_health.py    # Disk health query + refresh trigger
-│   │   │   └── ceph_osd.py       # Ceph OSD map + df query + refresh trigger
+│   │   │   └── ceph_osd.py       # Ceph OSD map + df query + history + refresh trigger
 │   │   ├── services/             # Business logic
 │   │   │   ├── zstack_client.py  # ZStack API HTTP client (GET only) + ZQL queries
 │   │   │   ├── sync_service.py   # Data collection orchestration
@@ -87,7 +87,7 @@ elicloudmonitor/
 │   │   │   ├── smartctl_service.py # SCP collection + smartctl parser
 │   │   │   ├── prometheus_service.py # HTTP scrape of node_exporter; upserts HostDiskRecord
 │   │   │   ├── lsblk_service.py  # SCP fetch + parse of lsblk JSON; upserts OsdMapping
-│   │   │   └── ceph_osd_service.py # SCP fetch + parse of ceph osd df JSON; upserts CephOsdRecord
+│   │   │   └── ceph_osd_service.py # SCP fetch + parse of ceph osd df JSON; upserts CephOsdRecord + appends CephOsdSnapshot
 │   │   └── scheduler.py          # APScheduler setup
 │   └── alembic/                  # DB migrations
 ├── frontend/
@@ -262,7 +262,8 @@ Query params for `/vms`:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/ceph-osd/osd-map` | List all OsdMapping records (NVMe → OSD ID) |
-| GET | `/ceph-osd/osd-df` | List all CephOsdRecord (ceph osd df) ordered by osd_id |
+| GET | `/ceph-osd/osd-df` | List all CephOsdRecord (latest ceph osd df) ordered by osd_id |
+| GET | `/ceph-osd/history` | Time-series utilization history from CephOsdSnapshot; params: `osd_id` (optional), `days` (1–365, default 30) |
 | POST | `/ceph-osd/refresh` | Trigger lsblk + ceph osd df collection from all enabled nodes; parse + upsert |
 
 #### Admin / Status
@@ -351,6 +352,7 @@ Models follow the ERD. Key implementation notes:
 - `OsdMapping` — upsert keyed on `(hostname, nvme_device)` (named constraint `uq_osd_mapping_hostname_nvme`)
 - `CephOsdRecord.status` — not stored in ceph osd df JSON; derived on parse: `reweight > 0.0` → `"active"`, `reweight == 0.0` → `"out"`
 - `CephOsdRecord` — only the newest collected file is parsed (all 11 nodes produce identical cluster-wide data); upsert keyed on `osd_id` (named constraint `uq_ceph_osd_id`)
+- `CephOsdSnapshot` — append-only; one row inserted per OSD per collection run alongside the `CephOsdRecord` upsert; fields: `osd_id`, `utilization`, `kb_used`, `kb_total`, `crush_weight`, `pgs`, `status`, `collected_at`; indexed on `(osd_id, collected_at)` for efficient time-range queries
 - DB schema changes are managed via Alembic (`alembic upgrade head` runs on container startup)
 
 ---

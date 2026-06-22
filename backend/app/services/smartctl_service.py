@@ -117,11 +117,11 @@ def _parse_file(path: Path) -> dict | None:
         notes = "; ".join(issues)
     elif disk_health == "PASSED" and (
         (available_spare_pct is not None and available_spare_pct < 90)
-        or (endurance_used_pct is not None and endurance_used_pct >= 80)
+        or (endurance_used_pct is not None and endurance_used_pct >= 70)
     ):
         if available_spare_pct is not None and available_spare_pct < 90:
             warnings.append(f"Available Spare {available_spare_pct:.0f}%")
-        if endurance_used_pct is not None and endurance_used_pct >= 80:
+        if endurance_used_pct is not None and endurance_used_pct >= 70:
             warnings.append(f"Percentage Used {endurance_used_pct:.0f}%")
         summary = "Warning"
         notes = "; ".join(warnings)

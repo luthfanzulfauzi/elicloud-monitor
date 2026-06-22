@@ -266,7 +266,7 @@ Data source: smartctl output files collected from storage nodes via SCP — not 
 | FR-12C.1 | System shall extract the following fields from each smartctl output file: Hostname, NVMe Device, Model Number, Total NVM Capacity (Bytes), Data Units Written (for TBW calculation), Percentage Used (Endurance Used), Available Spare, SMART overall-health assessment (PASSED / FAILED) |
 | FR-12C.2 | System shall calculate TBW (Terabytes Written) from Data Units Written: `TBW = data_units_written × 512000 / 1e12` |
 | FR-12C.3 | System shall calculate Write Endurance (Life Remaining) as `100 - Endurance Used %` |
-| FR-12C.4 | System shall generate a human-readable Summary and Notes per disk based on health status and metric thresholds |
+| FR-12C.4 | System shall generate a human-readable Summary and Notes per disk based on health status and metric thresholds: `Not good` (SMART FAILED, critical warning, spare ≤ threshold, endurance ≥ 100%, or media errors > 0); `Warning` (spare < 90% or endurance used ≥ 70%); `Good` otherwise |
 | FR-12C.5 | System shall store the latest parsed record per (hostname, nvme_device) pair — overwrite on each refresh |
 
 #### FR-12D: Disk Health Dashboard Page
@@ -275,14 +275,23 @@ Data source: smartctl output files collected from storage nodes via SCP — not 
 |----|-------------|
 | FR-12D.1 | System shall provide a "Disk Health" page displaying a unified table of all NVMe disks across all storage nodes |
 | FR-12D.2 | Table shall combine NVMe SMART data with OSD Map and Ceph OSD df data in a single 17-column table: Hostname, NVMe Device, OSD ID, OSD Size, Model, Capacity, TBW, Endurance Used %, Life Remaining %, Available Spare %, Disk Health, Summary, Use%, CRUSH Weight, PGs, Status, Notes |
-| FR-12D.3 | Disk Health column shall be color-coded: PASSED=green, FAILED=red |
-| FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health status |
+| FR-12D.3 | Disk Health badge shall reflect the worst condition across all available metrics via a 5-level system computed client-side: **PASSED** (green, all nominal) · **WARNING** (amber, SMART spare <90% or endurance ≥70%, or Ceph use% ≥70%) · **MAJOR** (orange, Ceph use% ≥80%) · **CRITICAL** (red, Ceph use% ≥85% or SMART not-good indicators) · **FAILED** (dark red, `disk_health=FAILED` from smartctl — drive physically dead). Priority: FAILED > CRITICAL > MAJOR > WARNING > PASSED |
+| FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health level (PASSED / WARNING / MAJOR / CRITICAL) |
 | FR-12D.5 | System shall display the timestamp of the last data collection |
 | FR-12D.6 | System shall provide a "Refresh" button to trigger on-demand SCP collection + Ceph data refresh simultaneously |
 | FR-12D.7 | System shall allow exporting the disk health table to CSV |
 | FR-12D.8 | OSD ID and OSD Size columns shall be populated via client-side join: `OsdMapping.hostname::nvme_device → DiskHealthRecord` |
 | FR-12D.9 | Use%, CRUSH Weight, PGs, Status columns shall be populated via client-side join: `CephOsdRecord.osd_id → OsdMapping.osd_id` |
 | FR-12D.10 | Status badge shall show "active" (reweight > 0) or "out" (reweight = 0) — derived from Ceph reweight, not a raw status field |
+
+#### FR-12E: Ceph OSD Utilization History
+
+| ID | Requirement |
+|----|-------------|
+| FR-12E.1 | System shall persist a utilization snapshot for every OSD on each collection run in an append-only `ceph_osd_snapshots` table |
+| FR-12E.2 | Each snapshot row shall store: `osd_id`, `utilization`, `kb_used`, `kb_total`, `crush_weight`, `pgs`, `status`, `collected_at` |
+| FR-12E.3 | `CephOsdRecord` (latest state) and `CephOsdSnapshot` (history) shall be written atomically in the same DB transaction per collection run |
+| FR-12E.4 | System shall expose `GET /ceph-osd/history` with optional `osd_id` filter and `days` parameter (1–365, default 30) returning snapshots ordered by `osd_id, collected_at` |
 
 ---
 

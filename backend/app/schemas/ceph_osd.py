@@ -34,6 +34,20 @@ class CephOsdItem(BaseModel):
     collected_at: datetime
 
 
+class CephOsdSnapshotItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    osd_id: int
+    utilization: float | None
+    kb_used: int | None
+    kb_total: int | None
+    crush_weight: float | None
+    pgs: int | None
+    status: str | None
+    collected_at: datetime
+
+
 class CephCollectResult(BaseModel):
     nodes_collected: int
     nodes_failed: int

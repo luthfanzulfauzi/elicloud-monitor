@@ -350,9 +350,10 @@ NVMe SMART health monitoring + Ceph OSD utilization across all storage nodes, in
 | Card | Meaning |
 |------|---------|
 | Total Drives | All NVMe devices in the database |
-| PASSED | Drives with SMART health = PASSED |
-| Warning | PASSED but degraded spare (<90%) or high wear (≥80%) |
-| Not Good | FAILED, critical warning, spare at threshold, or media errors |
+| PASSED | All metrics nominal — SMART healthy, Ceph use% < 70% |
+| Warning | SMART spare <90%, endurance ≥70%, or Ceph use% ≥70% |
+| Major | Ceph use% ≥ 80% |
+| Critical | Ceph use% ≥ 85% or SMART not-good indicators (media errors, critical warning, etc.) |
 
 #### Unified NVMe + OSD + Ceph table
 
@@ -370,15 +371,15 @@ Each row is one NVMe device. Columns come from three joined data sources:
 | End. Used | SMART | Endurance Used % (wear gauge) |
 | Life Rem. | SMART | 100% − Endurance Used |
 | Avail Spare | SMART | NAND spare blocks remaining |
-| Disk Health | SMART | PASSED (green) / FAILED (red) badge |
-| Summary | SMART | Good / Warning / Not good |
+| Disk Health | SMART + Ceph | 5-level badge: PASSED (green) · WARNING (amber) · MAJOR (orange) · CRITICAL (red) · FAILED (dark red) — worst of SMART and Ceph conditions |
+| Summary | SMART + Ceph | Effective level: Good / Warning / Major / Critical / Failed |
 | Use % | Ceph OSD df | OSD utilization — amber ≥70%, red ≥85% |
 | Weight | Ceph OSD df | CRUSH map weight |
 | PGs | Ceph OSD df | Placement group count |
 | Status | Ceph OSD df | `active` (green) / `out` (red) — derived from reweight |
 | Notes | SMART | Human-readable notes |
 
-All columns are sortable. Row background: red-tinted for "Not good" SMART summary, amber-tinted for "Warning".
+All columns are sortable. Health filter dropdown covers PASSED / WARNING / MAJOR / CRITICAL.
 
 **Collect & Refresh** — triggers SCP collection for SMART files **and** lsblk/ceph osd df files from all enabled storage nodes, then re-parses all three datasets.
 
@@ -708,7 +709,7 @@ elicloudmonitor/
 │       │   ├── storage_node.py  # SSH config registry for storage nodes
 │       │   ├── host_disk.py     # Host filesystem disk usage from Prometheus
 │       │   ├── osd_mapping.py   # NVMe↔OSD mapping from lsblk
-│       │   ├── ceph_osd.py      # Ceph OSD utilization from ceph osd df
+│       │   ├── ceph_osd.py      # CephOsdRecord (latest per OSD) + CephOsdSnapshot (append-only history)
 │       │   └── user_scope.py    # UserProjectScope + UserResourceGroupScope junction tables
 │       ├── schemas/             # Pydantic v2 request/response schemas
 │       ├── routers/
@@ -724,7 +725,7 @@ elicloudmonitor/
 │       │   ├── disk_health.py   # GET /disk-health, POST /refresh, GET /export/csv
 │       │   ├── storage_nodes.py # StorageNode CRUD
 │       │   ├── status.py        # App health, sync logs
-│       │   └── ceph_osd.py      # GET /ceph-osd/osd-map, GET /ceph-osd/osd-df, POST /refresh
+│       │   └── ceph_osd.py      # GET /ceph-osd/osd-map, GET /ceph-osd/osd-df, GET /ceph-osd/history, POST /refresh
 │       └── services/
 │           ├── zstack_client.py # ZStack AccessKey HMAC-SHA1 HTTP client (GET only)
 │           ├── sync_service.py  # ZStack data collection orchestration
@@ -732,7 +733,7 @@ elicloudmonitor/
 │           ├── smartctl_service.py  # File parser + DB upsert
 │           ├── prometheus_service.py # Scrapes node_exporter on each host
 │           ├── lsblk_service.py      # Parses lsblk JSON → OsdMapping
-│           └── ceph_osd_service.py   # Parses ceph osd df JSON → CephOsdRecord
+│           └── ceph_osd_service.py   # Parses ceph osd df JSON → upserts CephOsdRecord + appends CephOsdSnapshot
 ├── frontend/
 │   ├── Dockerfile
 │   ├── package.json
@@ -866,7 +867,8 @@ All endpoints except `POST /auth/login` require `Authorization: Bearer <token>`.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/ceph-osd/osd-map` | NVMe→OSD mapping from lsblk |
-| GET | `/ceph-osd/osd-df` | Per-OSD utilization from ceph osd df |
+| GET | `/ceph-osd/osd-df` | Latest per-OSD utilization from ceph osd df |
+| GET | `/ceph-osd/history` | OSD utilization history; params: `osd_id` (optional), `days` (1–365, default 30) |
 | POST | `/ceph-osd/refresh` | Collect lsblk + ceph osd df from all enabled nodes, parse and upsert |
 
 #### Storage Nodes

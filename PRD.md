@@ -125,7 +125,7 @@ Monitor NVMe disk health on storage servers by collecting and parsing smartctl o
 - EliCloud Monitor VM downloads `{HOSTNAME}_{NVME_DISK}_smart.txt` files from all storage nodes via SCP
 - Parse NVMe SMART data: model, capacity, TBW, endurance used %, life remaining %, available spare %, health status
 - Display a unified table across all storage nodes with per-disk health indicators
-- Color-coded Disk Health column (PASSED / FAILED)
+- 5-level Disk Health badge combining SMART metrics and Ceph OSD utilization: **PASSED** (all nominal) · **WARNING** (spare <90%, endurance ≥70%, or Ceph ≥70%) · **MAJOR** (Ceph ≥80%) · **CRITICAL** (Ceph ≥85% or SMART not-good indicators) · **FAILED** (drive physically dead per smartctl)
 - Manual refresh trigger to re-pull and re-parse latest smartctl output
 - Storage node registry (hostname, SSH config) managed within this app's own database
 

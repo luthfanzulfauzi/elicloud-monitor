@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, RefreshCw, Download, CheckCircle2, AlertTriangle,
-  XCircle, Plus, Pencil, Trash2, Server, Search,
+  XCircle, AlertCircle, Plus, Pencil, Trash2, Server, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
 } from 'lucide-react'
 import {
@@ -39,18 +39,52 @@ function fmtDate(iso: string | null): string {
 
 // ─── Disk health display components ──────────────────────────────────────────
 
-function HealthBadge({ health }: { health: string }) {
+type HealthLevel = 'Failed' | 'Critical' | 'Major' | 'Warning' | 'Good'
+
+function effectiveLevel(health: string, summary: string | null, cephUtilization: number | null): HealthLevel {
+  if (health === 'FAILED') return 'Failed'
+  if (summary === 'Not good') return 'Critical'
+  if (cephUtilization != null && cephUtilization >= 85) return 'Critical'
+  if (cephUtilization != null && cephUtilization >= 80) return 'Major'
+  if (summary === 'Warning') return 'Warning'
+  if (cephUtilization != null && cephUtilization >= 70) return 'Warning'
+  return 'Good'
+}
+
+function HealthBadge({ health, summary, cephUtilization }: { health: string; summary: string | null; cephUtilization: number | null }) {
+  const level = effectiveLevel(health, summary, cephUtilization)
+  if (level === 'Failed') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-800">
+        <XCircle className="h-3 w-3" /> FAILED
+      </span>
+    )
+  }
+  if (level === 'Critical') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+        <AlertCircle className="h-3 w-3" /> CRITICAL
+      </span>
+    )
+  }
+  if (level === 'Major') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-600">
+        <AlertTriangle className="h-3 w-3" /> MAJOR
+      </span>
+    )
+  }
+  if (level === 'Warning') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+        <AlertTriangle className="h-3 w-3" /> WARNING
+      </span>
+    )
+  }
   if (health === 'PASSED') {
     return (
       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
         <CheckCircle2 className="h-3 w-3" /> PASSED
-      </span>
-    )
-  }
-  if (health === 'FAILED') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-        <XCircle className="h-3 w-3" /> FAILED
       </span>
     )
   }
@@ -64,7 +98,10 @@ function HealthBadge({ health }: { health: string }) {
 function SummaryBadge({ summary }: { summary: string | null }) {
   if (!summary) return <span className="text-slate-400">—</span>
   if (summary === 'Good') return <span className="text-[10px] font-medium text-emerald-600">{summary}</span>
-  if (summary === 'Warning') return <span className="text-[10px] font-medium text-amber-600">{summary}</span>
+  if (summary === 'Warning') return <span className="text-[10px] font-medium text-amber-700">{summary}</span>
+  if (summary === 'Major') return <span className="text-[10px] font-semibold text-orange-600">{summary}</span>
+  if (summary === 'Critical') return <span className="text-[10px] font-semibold text-red-600">{summary}</span>
+  if (summary === 'Failed') return <span className="text-[10px] font-semibold text-red-800">{summary}</span>
   return <span className="text-[10px] font-semibold text-red-600">{summary}</span>
 }
 
@@ -370,7 +407,13 @@ function SmartTab({
     const q = search.trim().toLowerCase()
     return enriched.filter((r) => {
       if (hostnameFilter !== 'all' && r.hostname !== hostnameFilter) return false
-      if (healthFilter !== 'all' && r.disk_health !== healthFilter) return false
+      if (healthFilter !== 'all') {
+        const eff = effectiveLevel(r.disk_health, r.summary, r.ceph_utilization ?? null)
+        if (healthFilter === 'PASSED' && eff !== 'Good') return false
+        if (healthFilter === 'WARNING' && eff !== 'Warning') return false
+        if (healthFilter === 'MAJOR' && eff !== 'Major') return false
+        if (healthFilter === 'CRITICAL' && eff !== 'Critical' && eff !== 'Failed') return false
+      }
       if (q &&
           !r.hostname.toLowerCase().includes(q) &&
           !r.nvme_device.toLowerCase().includes(q) &&
@@ -406,7 +449,21 @@ function SmartTab({
 
   const thProps = { sortKey, sortDir, onSort: handleSort }
 
+  const totalDrives = enriched.length
+  const passedCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Good').length
+  const warningCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Warning').length
+  const majorCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Major').length
+  const criticalCount = enriched.filter((r) => ['Critical', 'Failed'].includes(effectiveLevel(r.disk_health, r.summary, r.ceph_utilization))).length
+
   return (
+    <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <StatCard label="Total Drives" value={totalDrives} icon={HardDrive} iconClass="bg-sky-500" />
+      <StatCard label="PASSED" value={passedCount} icon={CheckCircle2} iconClass="bg-emerald-500" />
+      <StatCard label="Warning" value={warningCount} icon={AlertTriangle} iconClass="bg-amber-500" />
+      <StatCard label="Major" value={majorCount} icon={AlertTriangle} iconClass="bg-orange-500" />
+      <StatCard label="Critical" value={criticalCount} icon={AlertCircle} iconClass="bg-red-500" />
+    </div>
     <Card>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -444,7 +501,9 @@ function SmartTab({
               <SelectContent>
                 <SelectItem value="all" className="text-xs">All Health</SelectItem>
                 <SelectItem value="PASSED" className="text-xs">PASSED</SelectItem>
-                <SelectItem value="FAILED" className="text-xs">FAILED</SelectItem>
+                <SelectItem value="WARNING" className="text-xs">WARNING</SelectItem>
+                <SelectItem value="MAJOR" className="text-xs">MAJOR</SelectItem>
+                <SelectItem value="CRITICAL" className="text-xs">CRITICAL</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -507,7 +566,7 @@ function SmartTab({
                         <td className="whitespace-nowrap px-4 py-3 text-slate-600">{r.capacity_tb != null ? `${r.capacity_tb.toFixed(2)} TB` : '—'}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-600">{r.tbw != null ? `${r.tbw.toFixed(1)} TB` : '—'}</td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          <PctCell value={r.endurance_used_pct} warnAbove={80} dangerAbove={100} />
+                          <PctCell value={r.endurance_used_pct} warnAbove={70} dangerAbove={100} />
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <PctCell value={r.life_remaining_pct} warnBelow={20} dangerBelow={0} />
@@ -515,8 +574,8 @@ function SmartTab({
                         <td className="whitespace-nowrap px-4 py-3">
                           <PctCell value={r.available_spare_pct} warnBelow={90} dangerBelow={10} />
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3"><HealthBadge health={r.disk_health} /></td>
-                        <td className="whitespace-nowrap px-4 py-3"><SummaryBadge summary={r.summary} /></td>
+                        <td className="whitespace-nowrap px-4 py-3"><HealthBadge health={r.disk_health} summary={r.summary} cephUtilization={r.ceph_utilization} /></td>
+                        <td className="whitespace-nowrap px-4 py-3"><SummaryBadge summary={effectiveLevel(r.disk_health, r.summary, r.ceph_utilization ?? null)} /></td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <PctCell value={r.ceph_utilization} warnAbove={70} dangerAbove={85} />
                         </td>
@@ -542,6 +601,7 @@ function SmartTab({
         )}
       </CardContent>
     </Card>
+    </div>
   )
 }
 
@@ -618,11 +678,6 @@ export default function DiskHealth() {
   const allOsdMap = osdMap ?? []
   const allCephOsd = cephOsdDf ?? []
 
-  const totalDrives = allRecords.length
-  const passedCount = allRecords.filter((r) => r.disk_health === 'PASSED').length
-  const warningCount = allRecords.filter((r) => r.summary === 'Warning').length
-  const notGoodCount = allRecords.filter((r) => r.summary === 'Not good').length
-
   const isRefreshing = isSmartRefreshing || isCephRefreshing
   const isLoading = diskLoading || osdMapLoading || cephLoading
 
@@ -679,15 +734,7 @@ export default function DiskHealth() {
         </div>
       </div>
 
-      {/* ── Summary stat cards ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total Drives" value={totalDrives} icon={HardDrive} iconClass="bg-sky-500" />
-        <StatCard label="PASSED" value={passedCount} icon={CheckCircle2} iconClass="bg-emerald-500" />
-        <StatCard label="Warning" value={warningCount} icon={AlertTriangle} iconClass="bg-amber-500" />
-        <StatCard label="Not Good" value={notGoodCount} icon={XCircle} iconClass="bg-red-500" />
-      </div>
-
-      {/* ── Combined NVMe SMART + OSD + Ceph table ── */}
+      {/* ── Combined NVMe SMART + OSD + Ceph table (includes stat cards) ── */}
       <SmartTab
         records={allRecords}
         osdMap={allOsdMap}

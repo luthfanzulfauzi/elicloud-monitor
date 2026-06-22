@@ -1,15 +1,16 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models.ceph_osd import CephOsdRecord
+from ..models.ceph_osd import CephOsdRecord, CephOsdSnapshot
 from ..models.osd_mapping import OsdMapping
 from ..models.storage_node import StorageNode
-from ..schemas.ceph_osd import CephCollectResult, CephOsdItem, OsdMappingItem
+from ..schemas.ceph_osd import CephCollectResult, CephOsdItem, CephOsdSnapshotItem, OsdMappingItem
 from ..services.ceph_osd_service import collect_ceph_osd_df_from_node, parse_and_upsert_ceph_osd
 from ..services.lsblk_service import collect_lsblk_from_node, parse_and_upsert_lsblk
 
@@ -30,6 +31,21 @@ async def list_ceph_osd_df(db: AsyncSession = Depends(get_db)):
         select(CephOsdRecord).order_by(CephOsdRecord.osd_id)
     )).scalars().all()
     return [CephOsdItem.model_validate(r) for r in records]
+
+
+@router.get("/history", response_model=list[CephOsdSnapshotItem])
+async def get_osd_history(
+    osd_id: Optional[int] = Query(None, description="Filter by OSD ID"),
+    days: int = Query(30, ge=1, le=365, description="Number of days of history to return"),
+    db: AsyncSession = Depends(get_db),
+):
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    q = select(CephOsdSnapshot).where(CephOsdSnapshot.collected_at >= since)
+    if osd_id is not None:
+        q = q.where(CephOsdSnapshot.osd_id == osd_id)
+    q = q.order_by(CephOsdSnapshot.osd_id, CephOsdSnapshot.collected_at)
+    records = (await db.execute(q)).scalars().all()
+    return [CephOsdSnapshotItem.model_validate(r) for r in records]
 
 
 @router.post("/refresh", response_model=CephCollectResult)
