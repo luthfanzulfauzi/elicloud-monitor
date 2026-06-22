@@ -7,6 +7,7 @@ is consistent with what users see in the DiskHealth page.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select
@@ -90,7 +91,7 @@ def format_disk_alert_message(
     test: bool = False,
 ) -> str:
     """Format a grouped alert message for Google Chat."""
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now_str = datetime.now(ZoneInfo("Asia/Jakarta")).strftime("%Y-%m-%d %H:%M WIB")
 
     header = "🧪 *[TEST] Disk Health Alert — EliCloud Monitor*" if test else "🚨 *Disk Health Alert — EliCloud Monitor*"
     lines: list[str] = [header, ""]
