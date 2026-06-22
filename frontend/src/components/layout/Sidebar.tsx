@@ -10,6 +10,7 @@ import {
   HardDrive,
   Users,
   Zap,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePermission } from '@/hooks/usePermission'
@@ -28,6 +29,7 @@ const navItems = [
 
 const systemItems = [
   { to: '/users', label: 'User Management', icon: Users, end: false },
+  { to: '/alerts', label: 'Alerts', icon: Bell, end: false },
 ]
 
 function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; icon: React.ElementType; end?: boolean }) {

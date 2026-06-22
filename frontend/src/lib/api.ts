@@ -892,3 +892,90 @@ export async function refreshHostDisk(): Promise<{ success_count: number; error_
   const res = await apiClient.post('/hosts/disk-refresh')
   return res.data
 }
+
+// ─── Alert types ──────────────────────────────────────────────────────────────
+
+export interface AlertChannel {
+  id: string
+  name: string
+  channel_type: string
+  webhook_url: string
+  enabled: boolean
+  created_at: string
+}
+
+export interface AlertChannelCreate {
+  name: string
+  channel_type?: string
+  webhook_url: string
+  enabled?: boolean
+}
+
+export interface AlertChannelUpdate {
+  name?: string
+  webhook_url?: string
+  enabled?: boolean
+}
+
+export interface AlertRule {
+  id: string
+  channel_id: string
+  module: string
+  level: string
+  interval_hours: number
+  enabled: boolean
+}
+
+export interface AlertRuleUpdate {
+  interval_hours?: number
+  enabled?: boolean
+}
+
+export interface AlertTestResult {
+  success: boolean
+  message: string
+}
+
+// ─── Alert API functions ──────────────────────────────────────────────────────
+
+export async function fetchAlertChannels(): Promise<AlertChannel[]> {
+  try {
+    const res = await apiClient.get<AlertChannel[]>('/alerts/channels')
+    return res.data
+  } catch {
+    return []
+  }
+}
+
+export async function createAlertChannel(data: AlertChannelCreate): Promise<AlertChannel> {
+  const res = await apiClient.post<AlertChannel>('/alerts/channels', data)
+  return res.data
+}
+
+export async function updateAlertChannel(id: string, data: AlertChannelUpdate): Promise<AlertChannel> {
+  const res = await apiClient.patch<AlertChannel>(`/alerts/channels/${id}`, data)
+  return res.data
+}
+
+export async function deleteAlertChannel(id: string): Promise<void> {
+  await apiClient.delete(`/alerts/channels/${id}`)
+}
+
+export async function fetchAlertRules(channelId: string): Promise<AlertRule[]> {
+  try {
+    const res = await apiClient.get<AlertRule[]>(`/alerts/channels/${channelId}/rules`)
+    return res.data
+  } catch {
+    return []
+  }
+}
+
+export async function updateAlertRule(id: string, data: AlertRuleUpdate): Promise<AlertRule> {
+  const res = await apiClient.patch<AlertRule>(`/alerts/rules/${id}`, data)
+  return res.data
+}
+
+export async function testAlertChannel(id: string): Promise<AlertTestResult> {
+  const res = await apiClient.post<AlertTestResult>(`/alerts/channels/${id}/test`)
+  return res.data
+}

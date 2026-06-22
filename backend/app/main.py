@@ -10,7 +10,7 @@ from .config import settings
 from .database import engine, get_db
 from .scheduler import scheduler, setup_scheduler
 from .security import get_current_user, hash_password
-from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router, ceph_osd as ceph_osd_router
+from .routers import auth, dashboard, hosts, storage, vms, projects, resource_groups, users, status, compute, disk_health as disk_health_router, storage_nodes as storage_nodes_router, ceph_osd as ceph_osd_router, alerts as alerts_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -115,6 +115,7 @@ app.include_router(status.router, prefix=PREFIX, **_protected)
 app.include_router(disk_health_router.router, prefix=PREFIX, **_protected)
 app.include_router(storage_nodes_router.router, prefix=PREFIX, **_protected)
 app.include_router(ceph_osd_router.router, prefix=PREFIX, **_protected)
+app.include_router(alerts_router.router, prefix=PREFIX, **_protected)
 
 
 @app.get("/")

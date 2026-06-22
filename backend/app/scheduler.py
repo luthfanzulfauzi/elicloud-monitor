@@ -41,6 +41,14 @@ def setup_scheduler():
         replace_existing=True,
         max_instances=1,
     )
+    scheduler.add_job(
+        _alert_check_job,
+        "interval",
+        seconds=settings.ALERT_CHECK_INTERVAL_SECONDS,
+        id="alert_check",
+        replace_existing=True,
+        max_instances=1,
+    )
 
 
 async def _sync_job():
@@ -91,6 +99,18 @@ async def _ceph_collect_job():
         log.info("Ceph collect completed: osd_map=%d ceph_osd=%d", osd_map_parsed, ceph_parsed)
     except Exception as exc:
         log.error("Ceph collect job failed: %s", exc)
+
+
+async def _alert_check_job():
+    from .services.alert_service import check_disk_health_alerts
+
+    try:
+        async with AsyncSessionLocal() as db:
+            count = await check_disk_health_alerts(db)
+        if count > 0:
+            log.info("Alert check: sent %d alert(s)", count)
+    except Exception as exc:
+        log.error("Alert check job failed: %s", exc)
 
 
 async def _disk_health_job():

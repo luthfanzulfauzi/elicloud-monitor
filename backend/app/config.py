@@ -31,5 +31,7 @@ class Settings(BaseSettings):
 
     CEPH_COLLECT_INTERVAL_SECONDS: int = 3600
 
+    ALERT_CHECK_INTERVAL_SECONDS: int = 300
+
 
 settings = Settings()

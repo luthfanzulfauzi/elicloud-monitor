@@ -25,6 +25,7 @@ from app.models.resource_group import ResourceGroup  # noqa: E402, F401
 from app.models.host_disk import HostDiskRecord  # noqa: E402, F401
 from app.models.osd_mapping import OsdMapping  # noqa: E402, F401
 from app.models.ceph_osd import CephOsdRecord  # noqa: E402, F401
+from app.models.alert import AlertChannel, AlertRule, AlertState  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

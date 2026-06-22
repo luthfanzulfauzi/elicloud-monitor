@@ -11,6 +11,7 @@ import ResourceGroups from '@/pages/ResourceGroups'
 import Reports from '@/pages/Reports'
 import DiskHealth from '@/pages/DiskHealth'
 import Users from '@/pages/Users'
+import Alerts from '@/pages/Alerts'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 // Redirects project/resource_group scoped users to /vms
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="reports" element={<GlobalRoute element={<Reports />} />} />
             <Route path="disk-health" element={<GlobalRoute element={<DiskHealth />} />} />
             <Route path="users" element={<Users />} />
+            <Route path="alerts" element={<Alerts />} />
           </Route>
         </Route>
 

@@ -13,10 +13,12 @@ from .user_scope import UserProjectScope, UserResourceGroupScope
 from .disk_health import DiskHealthRecord
 from .storage_node import StorageNode
 from .host_disk import HostDiskRecord
+from .alert import AlertChannel, AlertRule, AlertState
 
 __all__ = [
     "Host", "PrimaryStorage", "Project", "VM", "Volume", "Tag", "EIP",
     "ResourceGroup", "ResourceGroupProject", "SnapshotHost", "SnapshotStorage",
     "CollectionLog", "AppUser", "UserProjectScope", "UserResourceGroupScope",
     "DiskHealthRecord", "StorageNode", "HostDiskRecord",
+    "AlertChannel", "AlertRule", "AlertState",
 ]
