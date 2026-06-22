@@ -15,6 +15,7 @@ A read-only internal web dashboard and reporting tool for **ZStack private cloud
 7. [How-To / Knowledge Base](#how-to--knowledge-base)
    - [Setting up ZStack credentials](#setting-up-zstack-credentials)
    - [Setting up Disk Health Monitoring](#setting-up-disk-health-monitoring)
+   - [Setting up Alerts](#setting-up-alerts)
    - [Managing Users](#managing-users)
    - [Resource Groups](#resource-groups)
    - [Exporting Data](#exporting-data)
@@ -46,6 +47,8 @@ A read-only internal web dashboard and reporting tool for **ZStack private cloud
 | F-13 | **Host Filesystem Monitoring** | Per-mountpoint disk usage scraped from Prometheus node_exporter on each host; shown on Hosts page |
 | F-14 | **Executive Report Export** | Executive summary report (PDF, XLSX, DOCX) covering hosts, VMs, storage, and NVMe disk health |
 | F-15 | **Data Scope** | Per-user API access restriction by project or resource group — scoped users see only their assigned VMs; enforced at the backend API layer |
+| F-16 | **Alerting System** | Google Chat webhook alerts for disk health events — configurable channels, per-level repeat intervals (CRITICAL 1 h, MAJOR 12 h, WARNING 24 h), deduplication via alert state, per-level test alerts from the UI |
+| F-17 | **Disk Disappearance Tracking** | Disks that stop appearing in collection files are automatically flagged `is_missing`; shown with a Missing badge and stat card on the Disk Health page |
 
 ---
 
@@ -193,6 +196,12 @@ All configuration is via `.env` file or environment variables. Never hardcode se
 | `CEPH_COLLECT_INTERVAL_SECONDS` | `3600` | How often the scheduler collects lsblk + ceph osd df from storage nodes (seconds) |
 | `PROMETHEUS_NODE_EXPORTER_PORT` | `9100` | Port where node_exporter is running on each host |
 | `PROMETHEUS_SCRAPE_INTERVAL_SECONDS` | `300` | How often host filesystem metrics are scraped (seconds) |
+
+### Alerting
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALERT_CHECK_INTERVAL_SECONDS` | `300` | How often the alert scheduler checks disk health and sends due notifications (seconds) |
 
 ### Frontend
 
@@ -541,6 +550,33 @@ If collection succeeds, the **Last Collected** and **Status** columns update, an
 | `Connection refused` | Host unreachable or wrong port | Verify SSH Host IP and firewall rules |
 | `No such file` | Wrong remote_dir | Check that the script has run and `/root/smartctl/` exists |
 | Files appear but no drives show | Filename format mismatch | Ensure script uses `${HOSTNAME}_${DEVICE}_smart.txt` format |
+
+---
+
+### Setting up Alerts
+
+EliCloud Monitor can send disk health alerts to a Google Chat Space webhook.
+
+#### Step 1 — Create a Google Chat Space webhook
+
+1. In Google Chat, open the Space where you want alerts
+2. Go to **Space settings → Apps & Integrations → Webhooks → Add Webhook**
+3. Name it (e.g. "EliCloud Monitor Alerts") and copy the webhook URL
+
+#### Step 2 — Add a channel in the UI
+
+1. Navigate to **Alerts** in the sidebar (Admin only)
+2. Click **Add Channel**
+3. Fill in the channel name and paste the webhook URL
+4. Click **Save** — three default rules are created automatically (WARNING every 24 h, MAJOR every 12 h, CRITICAL every 1 h)
+
+#### Step 3 — Verify and adjust
+
+- Click **Test** next to the channel to send a connectivity test message
+- Use the per-level **Send Test** buttons in the rules panel to preview formatted alert messages for each severity
+- Adjust intervals per level as needed; uncheck **Enabled** on any level to silence it
+
+Alerts fire automatically on the `ALERT_CHECK_INTERVAL_SECONDS` schedule (default: every 5 minutes).
 
 ---
 

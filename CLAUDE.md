@@ -103,13 +103,13 @@ Refer to `FRS.md` for the full directory structure and API specification.
 
 ---
 
-## Implementation Status (as of 2026-06-18)
+## Implementation Status (as of 2026-06-23)
 
 | Area | Status | Notes |
 |------|--------|-------|
 | ZStack sync + all data models | ✅ Done | AccessKey HMAC-SHA1 auth, full upsert sync |
 | Backend routers (dashboard, hosts, storage, vms, projects, resource_groups, users, compute, status) | ✅ Done | |
-| Frontend — all 9 pages + charts + export | ✅ Done | Industrial Precision UI; client-side CSV/PDF (Login, Dashboard, Hosts, Storage, VMs, Projects, Resource Groups, Reports, Disk Health, Users) |
+| Frontend — all 10 pages + charts + export | ✅ Done | Industrial Precision UI; client-side CSV/PDF (Login, Dashboard, Hosts, Storage, VMs, Projects, Resource Groups, Reports, Disk Health, Users, Alerts) |
 | Docker Compose + Dockerfiles | ✅ Done | postgres + backend + frontend services |
 | User authentication (login, JWT, protected routes, role gating) | ✅ Done | Phase 2.5 — Login page, ProtectedRoute, JWT Bearer, `/auth/login` + `/auth/me`, seed admin, `useCurrentUser` + `usePermission` hooks, sidebar + page gating; `last_active_at` tracked on every `/auth/me` call; session status (Online/Idle/Offline) shown in Users page |
 | VM → Project association sync | ✅ Done | ZQL `query accountresourceref` → `fetch_vm_owner_refs()` in `zstack_client.py`; 97% VM coverage (36 admin-owned VMs have `project_id=null`) |
@@ -123,8 +123,11 @@ Refer to `FRS.md` for the full directory structure and API specification.
 | Host filesystem monitoring via Prometheus | ✅ Done | `HostDiskRecord` model (`host_disk.py`); `prometheus_service.py` scrapes node_exporter `/metrics` per host; `GET /hosts/disk-summary` + `POST /hosts/disk-refresh` in `hosts.py` router; disk utilization per mountpoint visible on Hosts detail |
 | Ceph OSD monitoring (lsblk + ceph osd df) | ✅ Done | `OsdMapping` + `CephOsdRecord` + `CephOsdSnapshot` models; `lsblk_service.py` + `ceph_osd_service.py` services; `lsblk_collect.sh` + `ceph_osd_df_collect.sh` collectors on storage nodes; `/ceph-osd` router (`osd-map`, `osd-df`, `history`, `refresh`); APScheduler `ceph_collect` job; status derived from `reweight` (>0 → "active", 0 → "out"); only newest file parsed (all 11 nodes produce identical cluster-wide data); `CephOsdSnapshot` is append-only — one row per OSD per collection run for utilization history; `GET /ceph-osd/history?osd_id=<int>&days=<int>` returns time-series data |
 | Unified Disk Health page (NVMe SMART + OSD + Ceph) | ✅ Done | `DiskHealth.tsx` single 17-column table: SMART metrics + OSD ID/Size from `OsdMapping` + Use%/Weight/PGs/Status from `CephOsdRecord`; client-side join via two Maps keyed on `hostname::nvme_device` and `osd_id`; no separate tabs; `OsdStatusBadge` handles "active"/"up"; Refresh fires both SMART and Ceph refresh mutations; 5-level health badge: PASSED / WARNING / MAJOR / CRITICAL / FAILED via `effectiveLevel()` combining SMART summary + Ceph utilization thresholds (≥70% Warning, ≥80% Major, ≥85% Critical); endurance warning threshold = 70% |
+| Disk disappearance tracking | ✅ Done | `is_missing` + `missing_since` columns on `disk_health_records` (migration `c4d5e6f7a8b9`); `smartctl_service.py` compare-on-collect: after each run, marks any disk whose hostname was seen but device absent as `is_missing=True`; reappeared disks auto-cleared via upsert; hostnames with zero files (SCP failure) intentionally skipped; `Missing` stat card + inline badge + MISSING filter on DiskHealth page |
+| Clickable stat card filters (DiskHealth) | ✅ Done | All 6 stat cards (Total / PASSED / WARNING / MAJOR / CRITICAL / Missing) act as instant table filters with sky-500 active ring; clicking resets pagination to page 1 |
 | Executive Report export (PDF + XLSX + DOCX) | ✅ Done | `frontend/src/lib/export.ts`: `downloadExecutivePDF` (jsPDF), `downloadExecutiveXLSX` (ExcelJS), `downloadExecutiveDOCX` (docx library); all client-side; Reports page generates unified executive report with host/VM/storage/project/disk summary sections |
 | Data Scope (API access restriction by project / resource group) | ✅ Done | `scope_type` on AppUser; `user_project_scope` + `user_resource_group_scope` junction tables; `deps.py` `get_allowed_project_ids`; filtering on /vms, /projects, /resource-groups, /dashboard, /hosts; frontend `GlobalRoute` + Sidebar filtering + VMs infra section hidden for scoped users; scope management dialog in Users page |
+| Alerting system (Google Chat webhook) | ✅ Done | `alert_channels` + `alert_rules` + `alert_state` tables (migration `d5e6f7a8b9c0`); `alert_service.py` mirrors frontend `effectiveLevel()` in Python; APScheduler `alert_check` job (default every 300s); one grouped message per channel per run sorted by Ceph Use desc then Available Spare asc; deduplication via `alert_state` keyed on `(channel, module, hostname::nvme_device, level)`; level escalation fires immediately; default rules: WARNING=24h, MAJOR=12h, CRITICAL=1h (DB-configurable); `POST /alerts/channels/{id}/test-level?level=` sends real data test (dummy fallback with `🧪 [TEST]` prefix if no real disks at that level); Alerts page in sidebar System section (admin-only) |
 | `/reports` backend router (server-side scheduled reports) | ❌ Pending | Phase 3 — client-side export exists; server-side scheduled reports not yet built |
 | Deployment docs | ❌ Pending | Phase 4 |
 

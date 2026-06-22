@@ -276,13 +276,15 @@ Data source: smartctl output files collected from storage nodes via SCP — not 
 | FR-12D.1 | System shall provide a "Disk Health" page displaying a unified table of all NVMe disks across all storage nodes |
 | FR-12D.2 | Table shall combine NVMe SMART data with OSD Map and Ceph OSD df data in a single 17-column table: Hostname, NVMe Device, OSD ID, OSD Size, Model, Capacity, TBW, Endurance Used %, Life Remaining %, Available Spare %, Disk Health, Summary, Use%, CRUSH Weight, PGs, Status, Notes |
 | FR-12D.3 | Disk Health badge shall reflect the worst condition across all available metrics via a 5-level system computed client-side: **PASSED** (green, all nominal) · **WARNING** (amber, SMART spare <90% or endurance ≥70%, or Ceph use% ≥70%) · **MAJOR** (orange, Ceph use% ≥80%) · **CRITICAL** (red, Ceph use% ≥85% or SMART not-good indicators) · **FAILED** (dark red, `disk_health=FAILED` from smartctl — drive physically dead). Priority: FAILED > CRITICAL > MAJOR > WARNING > PASSED |
-| FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health level (PASSED / WARNING / MAJOR / CRITICAL) |
+| FR-12D.4 | System shall allow filtering the table by Hostname and Disk Health level (PASSED / WARNING / MAJOR / CRITICAL / MISSING) |
 | FR-12D.5 | System shall display the timestamp of the last data collection |
 | FR-12D.6 | System shall provide a "Refresh" button to trigger on-demand SCP collection + Ceph data refresh simultaneously |
 | FR-12D.7 | System shall allow exporting the disk health table to CSV |
 | FR-12D.8 | OSD ID and OSD Size columns shall be populated via client-side join: `OsdMapping.hostname::nvme_device → DiskHealthRecord` |
 | FR-12D.9 | Use%, CRUSH Weight, PGs, Status columns shall be populated via client-side join: `CephOsdRecord.osd_id → OsdMapping.osd_id` |
 | FR-12D.10 | Status badge shall show "active" (reweight > 0) or "out" (reweight = 0) — derived from Ceph reweight, not a raw status field |
+| FR-12D.11 | System shall display 6 clickable summary stat cards: Total, PASSED, WARNING, MAJOR, CRITICAL, Missing — clicking any card instantly filters the table to that health level |
+| FR-12D.12 | Missing disks shall be visually distinguished with an inline "Missing" badge on their Hostname cell and a muted row background; they are excluded from PASSED/WARNING/MAJOR/CRITICAL counts |
 
 #### FR-12E: Ceph OSD Utilization History
 
@@ -334,6 +336,76 @@ Data source: Prometheus `node_exporter` HTTP scrape — not ZStack API.
 | FR-14B.2 | System shall support XLSX export (`downloadExecutiveXLSX` via ExcelJS) with styled sheets per section, column widths, and header formatting |
 | FR-14B.3 | System shall support DOCX export (`downloadExecutiveDOCX` via docx library) with title page, branded header/footer, and per-section tables |
 | FR-14B.4 | All three formats shall be accessible from the Reports page under an "Executive Report" section |
+
+---
+
+### FR-12F: Disk Disappearance Tracking
+
+| ID | Requirement |
+|----|-------------|
+| FR-12F.1 | System shall track when a previously-known disk stops appearing in collection files |
+| FR-12F.2 | `DiskHealthRecord` shall include `is_missing` (Boolean, default false) and `missing_since` (DateTime, nullable) columns |
+| FR-12F.3 | After each smartctl collection run, the system shall compare parsed `(hostname, nvme_device)` pairs against DB records for all hostnames that appeared in that run; any disk not seen in the latest run shall be marked `is_missing=true` with `missing_since` set to the current timestamp |
+| FR-12F.4 | Hostnames that produced zero files in a run (e.g., SCP failure) shall be excluded from the comparison to avoid false-positive missing flags |
+| FR-12F.5 | When a missing disk reappears in a subsequent collection run, `is_missing` shall be reset to false and `missing_since` cleared |
+| FR-12F.6 | Missing disks shall be excluded from alert checks (only non-missing disks are evaluated for health alerts) |
+
+---
+
+### FR-15: Alerting System
+
+#### FR-15A: Alert Channels
+
+| ID | Requirement |
+|----|-------------|
+| FR-15A.1 | System shall support configurable webhook-based alert channels (initially Google Chat only) |
+| FR-15A.2 | Each channel shall have: name, channel_type (`google_chat`), webhook URL, enabled flag, created_at |
+| FR-15A.3 | System shall allow creating, editing, enabling/disabling, and deleting alert channels via the Alerts settings page |
+| FR-15A.4 | Creating a channel shall automatically seed three default alert rules: WARNING (24 h), MAJOR (12 h), CRITICAL (1 h) |
+
+#### FR-15B: Alert Rules
+
+| ID | Requirement |
+|----|-------------|
+| FR-15B.1 | Each channel shall have a set of alert rules keyed on `(channel_id, module, level)` |
+| FR-15B.2 | Each rule shall configure: module (e.g., `disk_health`), severity level, repeat interval in hours, and enabled flag |
+| FR-15B.3 | System shall allow editing rule interval and enabled state from the Alerts settings page |
+
+#### FR-15C: Alert Logic
+
+| ID | Requirement |
+|----|-------------|
+| FR-15C.1 | Alert check shall run on a configurable interval (default 300 s via `ALERT_CHECK_INTERVAL_SECONDS`) using APScheduler |
+| FR-15C.2 | Alert severity shall mirror the frontend `effectiveLevel()` logic: FAILED/Not-good SMART → CRITICAL; Ceph ≥85% → CRITICAL; Ceph ≥80% → MAJOR; SMART Warning → WARNING; Ceph ≥70% → WARNING; otherwise GOOD |
+| FR-15C.3 | System shall deduplicate alerts using an `alert_state` table keyed on `(channel_id, module, item_key, level)`; an alert for a given disk+level is only resent after its configured interval elapses |
+| FR-15C.4 | When the level of a disk escalates (e.g., WARNING → CRITICAL), the new level fires immediately since no prior state exists for that level |
+| FR-15C.5 | Per check cycle, one grouped message shall be sent per channel covering all due alerts across all levels |
+| FR-15C.6 | Alert message shall group disks by severity level (CRITICAL → MAJOR → WARNING), sorted within each group by Ceph utilization descending then Available Spare ascending |
+
+#### FR-15D: Alert Message Format
+
+| ID | Requirement |
+|----|-------------|
+| FR-15D.1 | Alert messages shall be plain-text with Google Chat markdown (asterisks for bold) |
+| FR-15D.2 | Each disk entry shall show: hostname, NVMe device, and reason (SMART notes if non-trivial, Ceph use% if ≥70%) |
+| FR-15D.3 | Message shall include a UTC timestamp of when the check ran |
+
+#### FR-15E: Test Alerts
+
+| ID | Requirement |
+|----|-------------|
+| FR-15E.1 | System shall support a connectivity test (sends a plain confirmation message to the webhook) |
+| FR-15E.2 | System shall support per-level test alerts (WARNING / MAJOR / CRITICAL) that use real disk data at that level; if no real disks qualify, dummy data is used with a note |
+| FR-15E.3 | Test alerts bypass interval state and are never recorded in `alert_state` |
+
+#### FR-15F: Alerts Settings Page
+
+| ID | Requirement |
+|----|-------------|
+| FR-15F.1 | System shall provide an Alerts page under the System section of the sidebar, accessible to Admin users only |
+| FR-15F.2 | Page shall list all configured channels; each channel row shall be expandable to show its alert rules |
+| FR-15F.3 | Each rule row shall allow inline editing of interval (hours) and toggling enabled state |
+| FR-15F.4 | Each rule row shall include a "Send Test" button that fires a per-level test alert immediately |
 
 ---
 

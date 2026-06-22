@@ -105,6 +105,7 @@ elicloudmonitor/
 │   │   │   ├── ResourceGroups.tsx
 │   │   │   ├── Reports.tsx
 │   │   │   ├── DiskHealth.tsx    # NVMe disk health monitoring page
+│   │   │   ├── Alerts.tsx        # Alert channels + rules configuration (Admin-only)
 │   │   │   └── Users.tsx
 │   │   ├── components/
 │   │   │   ├── auth/
@@ -265,6 +266,19 @@ Query params for `/vms`:
 | GET | `/ceph-osd/osd-df` | List all CephOsdRecord (latest ceph osd df) ordered by osd_id |
 | GET | `/ceph-osd/history` | Time-series utilization history from CephOsdSnapshot; params: `osd_id` (optional), `days` (1–365, default 30) |
 | POST | `/ceph-osd/refresh` | Trigger lsblk + ceph osd df collection from all enabled nodes; parse + upsert |
+
+#### Alerts (`/alerts`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/alerts/channels` | List all alert channels |
+| POST | `/alerts/channels` | Create a new alert channel (auto-seeds 3 default rules) |
+| PATCH | `/alerts/channels/{id}` | Update channel name, webhook URL, or enabled state |
+| DELETE | `/alerts/channels/{id}` | Delete channel and all associated rules/state (CASCADE) |
+| GET | `/alerts/channels/{id}/rules` | List all alert rules for a channel |
+| PATCH | `/alerts/rules/{id}` | Update rule interval_hours or enabled state |
+| POST | `/alerts/channels/{id}/test` | Send a connectivity test message to the webhook |
+| POST | `/alerts/channels/{id}/test-level` | Send a per-level test alert (`?level=WARNING\|MAJOR\|CRITICAL`); uses real disk data, falls back to dummy data |
 
 #### Admin / Status
 
@@ -475,6 +489,16 @@ All `fetchX()` functions attempt the real backend API and fall back to mock data
 - **Permissions Dialog**: 8-row table × View/Manage checkbox columns; Admin permissions are all-checked and disabled; Manage check auto-checks View; View uncheck auto-unchecks Manage
 - All mutations call the backend API (`POST/PUT/DELETE /users`) then invalidate the React Query `['users']` cache
 
+#### Alerts (`/alerts`)
+- **Admin-only page** — non-Admin users redirected to `/`; linked from sidebar System section (Bell icon)
+- Channel list table: Name, Type, Webhook URL (masked), Enabled toggle, Actions (Edit, Delete, Test)
+- Each channel row is expandable via chevron — shows a rules sub-panel with one row per severity level
+- Rule row: LevelBadge + interval input (editable inline, saves on blur) + enabled checkbox + **Send Test** button (FlaskConical icon)
+- "Send Test" fires `POST /alerts/channels/{id}/test-level?level=<LEVEL>` immediately; toasts success/failure
+- Add/Edit channel dialog: name, webhook URL, enabled toggle
+- Delete: double-click to arm → confirm
+- Footer note on rules panel: "Test sends a real alert using current disk data — does not affect alert intervals."
+
 ---
 
 ## 8. Configuration & Environment Variables
@@ -503,6 +527,9 @@ CEPH_COLLECT_INTERVAL_SECONDS=3600
 # Host Filesystem Monitoring (Prometheus node_exporter)
 PROMETHEUS_NODE_EXPORTER_PORT=9100
 PROMETHEUS_SCRAPE_INTERVAL_SECONDS=60
+
+# Alerting
+ALERT_CHECK_INTERVAL_SECONDS=300
 
 # Frontend
 VITE_API_BASE_URL=http://backend:8000/api/v1
