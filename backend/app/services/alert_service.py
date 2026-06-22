@@ -5,6 +5,7 @@ Mirrors the frontend effectiveLevel() logic exactly so alert severity
 is consistent with what users see in the DiskHealth page.
 """
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import httpx
@@ -19,6 +20,18 @@ from ..models.osd_mapping import OsdMapping
 from ..schemas.alert import AlertTestResult
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class _DummyDisk:
+    """Lightweight stand-in for DiskHealthRecord used only in test alerts."""
+    hostname: str
+    nvme_device: str
+    disk_health: str
+    summary: str | None
+    notes: str | None
+    available_spare_pct: float | None = None
+
 
 # ─── Level computation ────────────────────────────────────────────────────────
 
@@ -261,33 +274,20 @@ async def test_channel(db: AsyncSession, channel_id: str) -> AlertTestResult:
     return AlertTestResult(success=False, message="Failed to deliver test message — check webhook URL.")
 
 
-_DUMMY_DISKS: dict[str, list[tuple["DiskHealthRecord", float | None]]] = {}
-
-
-def _build_dummy_disks() -> dict[str, list[tuple["DiskHealthRecord", float | None]]]:
-    """Lazy-build dummy DiskHealthRecord instances for each alert level."""
-    def _d(**kwargs) -> "DiskHealthRecord":
-        r = DiskHealthRecord.__new__(DiskHealthRecord)
-        r.available_spare_pct = None
-        r.endurance_used_pct = None
-        for k, v in kwargs.items():
-            setattr(r, k, v)
-        return r
-
-    return {
-        "WARNING": [
-            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="PASSED", summary="Warning",  notes="Available Spare 85%",       available_spare_pct=85.0), None),
-            (_d(hostname="zs-storage-demo", nvme_device="nvme2n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 71.5),
-        ],
-        "MAJOR": [
-            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 82.3),
-            (_d(hostname="zs-storage-demo", nvme_device="nvme4n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 81.0),
-        ],
-        "CRITICAL": [
-            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="FAILED", summary="Not good", notes="SMART health FAILED",       available_spare_pct=0.0),  None),
-            (_d(hostname="zs-storage-demo", nvme_device="nvme1n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 87.5),
-        ],
-    }
+_DUMMY_DISKS: dict[str, list[tuple[_DummyDisk, float | None]]] = {
+    "WARNING": [
+        (_DummyDisk("zs-storage-demo", "nvme0n1", "PASSED", "Warning",  "Available Spare 85%",   85.0),  None),
+        (_DummyDisk("zs-storage-demo", "nvme2n1", "PASSED", "Good",     None,                    100.0), 71.5),
+    ],
+    "MAJOR": [
+        (_DummyDisk("zs-storage-demo", "nvme0n1", "PASSED", "Good",     None,                    100.0), 82.3),
+        (_DummyDisk("zs-storage-demo", "nvme4n1", "PASSED", "Good",     None,                    100.0), 81.0),
+    ],
+    "CRITICAL": [
+        (_DummyDisk("zs-storage-demo", "nvme0n1", "FAILED", "Not good", "SMART health FAILED",   0.0),   None),
+        (_DummyDisk("zs-storage-demo", "nvme1n1", "PASSED", "Good",     None,                    100.0), 87.5),
+    ],
+}
 
 
 async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> AlertTestResult:
@@ -328,8 +328,7 @@ async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> Ale
 
     is_dummy = not matching
     if is_dummy:
-        dummy_map = _build_dummy_disks()
-        matching = dummy_map[level]  # type: ignore[assignment]
+        matching = _DUMMY_DISKS[level]  # type: ignore[assignment]
 
     alerts_by_level = {level: matching}
     message = format_disk_alert_message(alerts_by_level, test=True)
