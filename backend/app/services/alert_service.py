@@ -47,7 +47,8 @@ def compute_disk_effective_level(disk: DiskHealthRecord, ceph_utilization: float
 def _disk_reason(disk: DiskHealthRecord, ceph_utilization: float | None) -> str:
     """Build a human-readable reason string for the alert message."""
     parts: list[str] = []
-    if disk.notes:
+    # Skip the default "all good" SMART note — it adds noise when Ceph is the trigger
+    if disk.notes and disk.notes != "All indicators nominal":
         parts.append(disk.notes)
     util = ceph_utilization or 0.0
     if util >= 70:
@@ -89,8 +90,13 @@ def format_disk_alert_message(
         items = alerts_by_level.get(level, [])
         if not items:
             continue
-        lines.append(f"{emoji} *{level} ({len(items)} disk(s))*")
-        for disk, ceph_util in items:
+        # Sort: highest Ceph Use first, then lowest Available Spare first
+        items_sorted = sorted(
+            items,
+            key=lambda x: (-(x[1] or 0.0), x[0].available_spare_pct or 100.0),
+        )
+        lines.append(f"{emoji} *{level} ({len(items_sorted)} disk(s))*")
+        for disk, ceph_util in items_sorted:
             reason = _disk_reason(disk, ceph_util)
             lines.append(f"• `{disk.hostname}` / {disk.nvme_device} — {reason}")
         lines.append("")
