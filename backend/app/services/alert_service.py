@@ -261,10 +261,39 @@ async def test_channel(db: AsyncSession, channel_id: str) -> AlertTestResult:
     return AlertTestResult(success=False, message="Failed to deliver test message — check webhook URL.")
 
 
+_DUMMY_DISKS: dict[str, list[tuple["DiskHealthRecord", float | None]]] = {}
+
+
+def _build_dummy_disks() -> dict[str, list[tuple["DiskHealthRecord", float | None]]]:
+    """Lazy-build dummy DiskHealthRecord instances for each alert level."""
+    def _d(**kwargs) -> "DiskHealthRecord":
+        r = DiskHealthRecord.__new__(DiskHealthRecord)
+        r.available_spare_pct = None
+        r.endurance_used_pct = None
+        for k, v in kwargs.items():
+            setattr(r, k, v)
+        return r
+
+    return {
+        "WARNING": [
+            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="PASSED", summary="Warning",  notes="Available Spare 85%",       available_spare_pct=85.0), None),
+            (_d(hostname="zs-storage-demo", nvme_device="nvme2n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 71.5),
+        ],
+        "MAJOR": [
+            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 82.3),
+            (_d(hostname="zs-storage-demo", nvme_device="nvme4n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 81.0),
+        ],
+        "CRITICAL": [
+            (_d(hostname="zs-storage-demo", nvme_device="nvme0n1", disk_health="FAILED", summary="Not good", notes="SMART health FAILED",       available_spare_pct=0.0),  None),
+            (_d(hostname="zs-storage-demo", nvme_device="nvme1n1", disk_health="PASSED", summary="Good",    notes="All indicators nominal",     available_spare_pct=100.0), 87.5),
+        ],
+    }
+
+
 async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> AlertTestResult:
     """
-    Send a real-data test alert for a specific level to the given channel,
-    bypassing interval state entirely. Uses actual disk health + Ceph data.
+    Send a test alert for a specific level, bypassing interval state.
+    Uses real disk data if available; falls back to dummy data with a note.
     """
     level = level.upper()
     if level not in ("WARNING", "MAJOR", "CRITICAL"):
@@ -276,11 +305,10 @@ async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> Ale
     if not channel:
         return AlertTestResult(success=False, message="Channel not found")
 
-    # Build disk + Ceph data (same as check_disk_health_alerts)
+    # Build disk + Ceph lookups
     disks = (
         await db.execute(select(DiskHealthRecord).where(DiskHealthRecord.is_missing.is_(False)))
     ).scalars().all()
-
     osd_map_rows = (await db.execute(select(OsdMapping))).scalars().all()
     osd_id_by_key: dict[str, int] = {
         f"{om.hostname}::{om.nvme_device}": om.osd_id
@@ -298,15 +326,18 @@ async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> Ale
         if compute_disk_effective_level(disk, ceph_util) == level:
             matching.append((disk, ceph_util))
 
-    if not matching:
-        return AlertTestResult(
-            success=False,
-            message=f"No disks currently at {level} — nothing to send.",
-        )
+    is_dummy = not matching
+    if is_dummy:
+        dummy_map = _build_dummy_disks()
+        matching = dummy_map[level]  # type: ignore[assignment]
 
     alerts_by_level = {level: matching}
     message = format_disk_alert_message(alerts_by_level, test=True)
+    if is_dummy:
+        message += "\n\n_⚠️ No real disks currently at this level — dummy data shown for format preview._"
+
     ok = await send_google_chat(channel.webhook_url, message)
     if ok:
-        return AlertTestResult(success=True, message=f"Test {level} alert sent ({len(matching)} disk(s)).")
+        suffix = " (dummy data)" if is_dummy else f" ({len(matching)} disk(s))"
+        return AlertTestResult(success=True, message=f"Test {level} alert sent{suffix}.")
     return AlertTestResult(success=False, message="Failed to deliver test message — check webhook URL.")
