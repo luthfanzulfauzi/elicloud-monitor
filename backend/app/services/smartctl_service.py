@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -159,6 +160,9 @@ async def parse_and_upsert_all(db: AsyncSession) -> tuple[int, int]:
 
     parsed = 0
     errors = 0
+    now = datetime.now(timezone.utc)
+    # Track which devices were seen per hostname in this collection run
+    seen: dict[str, set[str]] = {}  # hostname → {nvme_device, ...}
 
     for path in files:
         try:
@@ -167,9 +171,11 @@ async def parse_and_upsert_all(db: AsyncSession) -> tuple[int, int]:
                 errors += 1
                 continue
 
+            seen.setdefault(record["hostname"], set()).add(record["nvme_device"])
+
             stmt = (
                 pg_insert(DiskHealthRecord)
-                .values(**record)
+                .values(**record, is_missing=False, missing_since=None)
                 .on_conflict_do_update(
                     constraint="uq_disk_health_hostname_device",
                     set_={
@@ -184,7 +190,9 @@ async def parse_and_upsert_all(db: AsyncSession) -> tuple[int, int]:
                         "notes": record["notes"],
                         "raw_output": record["raw_output"],
                         "collected_at": record["collected_at"],
-                        "updated_at": datetime.now(timezone.utc),
+                        "updated_at": now,
+                        "is_missing": False,
+                        "missing_since": None,
                     },
                 )
             )
@@ -193,6 +201,26 @@ async def parse_and_upsert_all(db: AsyncSession) -> tuple[int, int]:
         except Exception as exc:
             log.error("Error processing %s: %s", path.name, exc)
             errors += 1
+
+    # For each hostname that produced files this run, mark any DB disk not in the
+    # current file set as missing. Hostnames with zero files (SCP failure) are
+    # intentionally skipped — we can't distinguish "node down" from "disk gone".
+    if seen:
+        existing = (await db.execute(
+            select(DiskHealthRecord).where(DiskHealthRecord.hostname.in_(seen.keys()))
+        )).scalars().all()
+
+        for disk in existing:
+            device_seen = disk.nvme_device in seen.get(disk.hostname, set())
+            if not device_seen and not disk.is_missing:
+                disk.is_missing = True
+                disk.missing_since = now
+                db.add(disk)
+            elif device_seen and disk.is_missing:
+                # Reappeared — already cleared by upsert above, but guard for safety
+                disk.is_missing = False
+                disk.missing_since = None
+                db.add(disk)
 
     await db.commit()
     log.info("smartctl parse complete: %d parsed, %d errors", parsed, errors)

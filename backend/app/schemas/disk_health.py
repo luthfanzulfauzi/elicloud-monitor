@@ -19,6 +19,8 @@ class DiskHealthItem(BaseModel):
     summary: str | None
     notes: str | None
     collected_at: datetime
+    is_missing: bool
+    missing_since: datetime | None
 
 
 class RefreshResult(BaseModel):

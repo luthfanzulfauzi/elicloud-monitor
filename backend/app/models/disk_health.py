@@ -1,4 +1,4 @@
-from sqlalchemy import String, BigInteger, Float, DateTime, Text, UniqueConstraint, func
+from sqlalchemy import String, BigInteger, Float, DateTime, Text, Boolean, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
@@ -23,6 +23,8 @@ class DiskHealthRecord(Base):
     raw_output: Mapped[str | None] = mapped_column(Text)
     collected_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
     updated_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    is_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    missing_since: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("hostname", "nvme_device", name="uq_disk_health_hostname_device"),

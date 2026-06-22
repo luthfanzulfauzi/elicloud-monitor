@@ -281,6 +281,8 @@ export interface DiskHealthRecord {
   summary: DiskSummary | null
   notes: string | null
   collected_at: string
+  is_missing: boolean
+  missing_since: string | null
 }
 
 export interface CollectResult {
@@ -573,14 +575,14 @@ export const MOCK_STORAGE_NODES: StorageNode[] = [
 ]
 
 export const MOCK_DISK_HEALTH: DiskHealthRecord[] = [
-  { id: 'd01', hostname: 'zs-storage01', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 528.0, endurance_used_pct: 4, life_remaining_pct: 96, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z' },
-  { id: 'd02', hostname: 'zs-storage01', nvme_device: 'nvme3n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 612.0, endurance_used_pct: 6, life_remaining_pct: 94, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z' },
-  { id: 'd03', hostname: 'zs-storage02', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 731.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 78, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 78%', collected_at: '2026-05-25T12:33:52Z' },
-  { id: 'd04', hostname: 'zs-storage02', nvme_device: 'nvme5n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 698.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 82, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 82%', collected_at: '2026-05-25T12:33:52Z' },
-  { id: 'd05', hostname: 'zs-storage03', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash PM1725b 3.2TB SFF', capacity_tb: 3.20, tbw: 412.0, endurance_used_pct: 3, life_remaining_pct: 97, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:10Z' },
-  { id: 'd06', hostname: 'zs-storage04', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 885.0, endurance_used_pct: 10, life_remaining_pct: 90, available_spare_pct: 98, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:22Z' },
-  { id: 'd07', hostname: 'zs-storage05', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 944.0, endurance_used_pct: 12, life_remaining_pct: 88, available_spare_pct: 97, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:38Z' },
-  { id: 'd08', hostname: 'zs-storage06', nvme_device: 'nvme0n1', model_number: 'Dell Ent NVMe CM6 MU 3.2TB', capacity_tb: 3.20, tbw: 321.0, endurance_used_pct: 2, life_remaining_pct: 98, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:55Z' },
+  { id: 'd01', hostname: 'zs-storage01', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 528.0, endurance_used_pct: 4, life_remaining_pct: 96, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z', is_missing: false, missing_since: null },
+  { id: 'd02', hostname: 'zs-storage01', nvme_device: 'nvme3n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 612.0, endurance_used_pct: 6, life_remaining_pct: 94, available_spare_pct: 99, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:33:28Z', is_missing: false, missing_since: null },
+  { id: 'd03', hostname: 'zs-storage02', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 731.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 78, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 78%', collected_at: '2026-05-25T12:33:52Z', is_missing: false, missing_since: null },
+  { id: 'd04', hostname: 'zs-storage02', nvme_device: 'nvme5n1', model_number: 'Dell Express Flash NVMe SM1715 3.2TB SFF', capacity_tb: 3.20, tbw: 698.0, endurance_used_pct: 0, life_remaining_pct: 100, available_spare_pct: 82, disk_health: 'PASSED', summary: 'Warning', notes: 'Available Spare 82%', collected_at: '2026-05-25T12:33:52Z', is_missing: false, missing_since: null },
+  { id: 'd05', hostname: 'zs-storage03', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash PM1725b 3.2TB SFF', capacity_tb: 3.20, tbw: 412.0, endurance_used_pct: 3, life_remaining_pct: 97, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:10Z', is_missing: false, missing_since: null },
+  { id: 'd06', hostname: 'zs-storage04', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 885.0, endurance_used_pct: 10, life_remaining_pct: 90, available_spare_pct: 98, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:22Z', is_missing: false, missing_since: null },
+  { id: 'd07', hostname: 'zs-storage05', nvme_device: 'nvme0n1', model_number: 'Dell Express Flash NVMe P4610 3.2TB SFF', capacity_tb: 3.20, tbw: 944.0, endurance_used_pct: 12, life_remaining_pct: 88, available_spare_pct: 97, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:38Z', is_missing: false, missing_since: null },
+  { id: 'd08', hostname: 'zs-storage06', nvme_device: 'nvme0n1', model_number: 'Dell Ent NVMe CM6 MU 3.2TB', capacity_tb: 3.20, tbw: 321.0, endurance_used_pct: 2, life_remaining_pct: 98, available_spare_pct: 100, disk_health: 'PASSED', summary: 'Good', notes: 'All indicators nominal', collected_at: '2026-05-25T12:34:55Z', is_missing: false, missing_since: null },
 ]
 
 // ─── API Functions (with mock fallback) ──────────────────────────────────────

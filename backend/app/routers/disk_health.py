@@ -33,6 +33,8 @@ def _to_item(r: DiskHealthRecord) -> DiskHealthItem:
         summary=r.summary,
         notes=r.notes,
         collected_at=r.collected_at,
+        is_missing=r.is_missing,
+        missing_since=r.missing_since,
     )
 
 

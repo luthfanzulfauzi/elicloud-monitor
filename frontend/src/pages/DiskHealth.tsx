@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   HardDrive, RefreshCw, Download, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Plus, Pencil, Trash2, Server, Search,
-  ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronUp, ChevronDown, ChevronsUpDown, EyeOff,
 } from 'lucide-react'
 import {
   fetchDiskHealth, refreshDiskHealth, fetchSmartctlLastUpdated, type DiskHealthRecord,
@@ -127,6 +127,20 @@ function PctCell({ value, warnAbove, dangerAbove, warnBelow, dangerBelow }: {
   )
 }
 
+function MissingBadge({ missingSince }: { missingSince: string | null }) {
+  const label = missingSince
+    ? `Missing since ${new Date(missingSince).toLocaleString()}`
+    : 'Missing'
+  return (
+    <span
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-600"
+      title={label}
+    >
+      <EyeOff className="h-2.5 w-2.5" /> Missing
+    </span>
+  )
+}
+
 function OsdStatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-slate-400">—</span>
   if (status === 'active' || status === 'up') {
@@ -145,10 +159,16 @@ function CollectStatusBadge({ status }: { status: string | null }) {
 // ─── Summary stat card ────────────────────────────────────────────────────────
 
 function StatCard({
-  label, value, icon: Icon, iconClass,
-}: { label: string; value: number | string; icon: React.ElementType; iconClass?: string }) {
+  label, value, icon: Icon, iconClass, active, onClick,
+}: { label: string; value: number | string; icon: React.ElementType; iconClass?: string; active?: boolean; onClick?: () => void }) {
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={cn(
+        onClick && 'cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5',
+        active && 'ring-2 ring-sky-500 ring-offset-1',
+      )}
+    >
       <CardContent className="p-5">
         <div className="flex items-center gap-3">
           <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconClass ?? 'bg-slate-100')}>
@@ -408,11 +428,16 @@ function SmartTab({
     return enriched.filter((r) => {
       if (hostnameFilter !== 'all' && r.hostname !== hostnameFilter) return false
       if (healthFilter !== 'all') {
-        const eff = effectiveLevel(r.disk_health, r.summary, r.ceph_utilization ?? null)
-        if (healthFilter === 'PASSED' && eff !== 'Good') return false
-        if (healthFilter === 'WARNING' && eff !== 'Warning') return false
-        if (healthFilter === 'MAJOR' && eff !== 'Major') return false
-        if (healthFilter === 'CRITICAL' && eff !== 'Critical' && eff !== 'Failed') return false
+        if (healthFilter === 'MISSING') {
+          if (!r.is_missing) return false
+        } else {
+          if (r.is_missing) return false
+          const eff = effectiveLevel(r.disk_health, r.summary, r.ceph_utilization ?? null)
+          if (healthFilter === 'PASSED' && eff !== 'Good') return false
+          if (healthFilter === 'WARNING' && eff !== 'Warning') return false
+          if (healthFilter === 'MAJOR' && eff !== 'Major') return false
+          if (healthFilter === 'CRITICAL' && eff !== 'Critical' && eff !== 'Failed') return false
+        }
       }
       if (q &&
           !r.hostname.toLowerCase().includes(q) &&
@@ -450,19 +475,27 @@ function SmartTab({
   const thProps = { sortKey, sortDir, onSort: handleSort }
 
   const totalDrives = enriched.length
-  const passedCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Good').length
-  const warningCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Warning').length
-  const majorCount = enriched.filter((r) => effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Major').length
-  const criticalCount = enriched.filter((r) => ['Critical', 'Failed'].includes(effectiveLevel(r.disk_health, r.summary, r.ceph_utilization))).length
+  const passedCount = enriched.filter((r) => !r.is_missing && effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Good').length
+  const warningCount = enriched.filter((r) => !r.is_missing && effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Warning').length
+  const majorCount = enriched.filter((r) => !r.is_missing && effectiveLevel(r.disk_health, r.summary, r.ceph_utilization) === 'Major').length
+  const criticalCount = enriched.filter((r) => !r.is_missing && ['Critical', 'Failed'].includes(effectiveLevel(r.disk_health, r.summary, r.ceph_utilization))).length
+  const missingCount = enriched.filter((r) => r.is_missing).length
 
   return (
     <div className="space-y-4">
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-      <StatCard label="Total Drives" value={totalDrives} icon={HardDrive} iconClass="bg-sky-500" />
-      <StatCard label="PASSED" value={passedCount} icon={CheckCircle2} iconClass="bg-emerald-500" />
-      <StatCard label="Warning" value={warningCount} icon={AlertTriangle} iconClass="bg-amber-500" />
-      <StatCard label="Major" value={majorCount} icon={AlertTriangle} iconClass="bg-orange-500" />
-      <StatCard label="Critical" value={criticalCount} icon={AlertCircle} iconClass="bg-red-500" />
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <StatCard label="Total Drives" value={totalDrives} icon={HardDrive} iconClass="bg-sky-500"
+        active={healthFilter === 'all'} onClick={() => { setHealthFilter('all'); setPage(1) }} />
+      <StatCard label="PASSED" value={passedCount} icon={CheckCircle2} iconClass="bg-emerald-500"
+        active={healthFilter === 'PASSED'} onClick={() => { setHealthFilter('PASSED'); setPage(1) }} />
+      <StatCard label="Warning" value={warningCount} icon={AlertTriangle} iconClass="bg-amber-500"
+        active={healthFilter === 'WARNING'} onClick={() => { setHealthFilter('WARNING'); setPage(1) }} />
+      <StatCard label="Major" value={majorCount} icon={AlertTriangle} iconClass="bg-orange-500"
+        active={healthFilter === 'MAJOR'} onClick={() => { setHealthFilter('MAJOR'); setPage(1) }} />
+      <StatCard label="Critical" value={criticalCount} icon={AlertCircle} iconClass="bg-red-500"
+        active={healthFilter === 'CRITICAL'} onClick={() => { setHealthFilter('CRITICAL'); setPage(1) }} />
+      <StatCard label="Missing" value={missingCount} icon={EyeOff} iconClass="bg-zinc-500"
+        active={healthFilter === 'MISSING'} onClick={() => { setHealthFilter('MISSING'); setPage(1) }} />
     </div>
     <Card>
       <CardHeader className="pb-2">
@@ -504,6 +537,7 @@ function SmartTab({
                 <SelectItem value="WARNING" className="text-xs">WARNING</SelectItem>
                 <SelectItem value="MAJOR" className="text-xs">MAJOR</SelectItem>
                 <SelectItem value="CRITICAL" className="text-xs">CRITICAL</SelectItem>
+                <SelectItem value="MISSING" className="text-xs">MISSING</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -550,11 +584,15 @@ function SmartTab({
                         key={r.id}
                         className={cn(
                           'transition-colors hover:bg-slate-50',
-                          r.summary === 'Not good' && 'bg-red-50/40 hover:bg-red-50/60',
-                          r.summary === 'Warning' && 'bg-amber-50/40 hover:bg-amber-50/60',
+                          r.is_missing && 'bg-zinc-50/80 hover:bg-zinc-100/60',
+                          !r.is_missing && r.summary === 'Not good' && 'bg-red-50/40 hover:bg-red-50/60',
+                          !r.is_missing && r.summary === 'Warning' && 'bg-amber-50/40 hover:bg-amber-50/60',
                         )}
                       >
-                        <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">{r.hostname}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">
+                          {r.hostname}
+                          {r.is_missing && <MissingBadge missingSince={r.missing_since} />}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600">{r.nvme_device}</td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {r.osd_id != null
