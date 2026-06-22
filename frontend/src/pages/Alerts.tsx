@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
-import { Bell, Plus, Pencil, Trash2, ChevronDown, ChevronRight, SendHorizonal } from 'lucide-react'
+import { Bell, Plus, Pencil, Trash2, ChevronDown, ChevronRight, SendHorizonal, FlaskConical } from 'lucide-react'
 import {
   fetchAlertChannels,
   createAlertChannel,
@@ -10,6 +10,7 @@ import {
   fetchAlertRules,
   updateAlertRule,
   testAlertChannel,
+  testAlertLevel,
   type AlertChannel,
 } from '@/lib/api'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -48,8 +49,16 @@ function LevelBadge({ level }: { level: string }) {
 
 // ─── Rules sub-panel ──────────────────────────────────────────────────────────
 
-function ChannelRules({ channelId }: { channelId: string }) {
+function ChannelRules({
+  channelId,
+  onToast,
+}: {
+  channelId: string
+  onToast: (msg: string, ok: boolean) => void
+}) {
   const qc = useQueryClient()
+  const [testingLevel, setTestingLevel] = useState<string | null>(null)
+
   const { data: rules, isLoading } = useQuery({
     queryKey: ['alert-rules', channelId],
     queryFn: () => fetchAlertRules(channelId),
@@ -60,6 +69,18 @@ function ChannelRules({ channelId }: { channelId: string }) {
       updateAlertRule(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-rules', channelId] }),
   })
+
+  async function handleTestLevel(level: string) {
+    setTestingLevel(level)
+    try {
+      const result = await testAlertLevel(channelId, level)
+      onToast(result.message, result.success)
+    } catch {
+      onToast(`Failed to send test ${level} alert.`, false)
+    } finally {
+      setTestingLevel(null)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -87,7 +108,8 @@ function ChannelRules({ channelId }: { channelId: string }) {
             <tr className="text-[9px] uppercase tracking-widest text-slate-400">
               <th className="py-1 text-left font-medium w-28">Level</th>
               <th className="py-1 text-left font-medium w-40">Interval (hours)</th>
-              <th className="py-1 text-left font-medium">Enabled</th>
+              <th className="py-1 text-left font-medium w-20">Enabled</th>
+              <th className="py-1 text-left font-medium">Test</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -111,7 +133,7 @@ function ChannelRules({ channelId }: { channelId: string }) {
                     }}
                   />
                 </td>
-                <td className="py-1.5">
+                <td className="py-1.5 pr-4">
                   <input
                     type="checkbox"
                     checked={rule.enabled}
@@ -121,10 +143,24 @@ function ChannelRules({ channelId }: { channelId: string }) {
                     }
                   />
                 </td>
+                <td className="py-1.5">
+                  <button
+                    title={`Send test ${rule.level} alert with real disk data`}
+                    disabled={testingLevel !== null}
+                    onClick={() => handleTestLevel(rule.level)}
+                    className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-white hover:text-sky-600 border border-transparent hover:border-slate-200 transition-colors disabled:opacity-40"
+                  >
+                    <FlaskConical className="h-3 w-3" />
+                    {testingLevel === rule.level ? 'Sending…' : 'Send Test'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <p className="mt-2 text-[9px] text-slate-400">
+          Test sends a real alert using current disk data — does not affect alert intervals.
+        </p>
       </div>
     </div>
   )
@@ -361,7 +397,7 @@ export default function Alerts() {
                     {expandedId === ch.id && (
                       <tr key={`${ch.id}-rules`}>
                         <td colSpan={6}>
-                          <ChannelRules channelId={ch.id} />
+                          <ChannelRules channelId={ch.id} onToast={showToast} />
                         </td>
                       </tr>
                     )}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,7 @@ from ..schemas.alert import (
     AlertRuleOut, AlertRuleUpdate,
     AlertTestResult,
 )
-from ..services.alert_service import test_channel
+from ..services.alert_service import test_channel, test_level_alert
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -122,3 +122,12 @@ async def update_rule(rule_id: str, body: AlertRuleUpdate, db: AsyncSession = De
 @router.post("/channels/{channel_id}/test", response_model=AlertTestResult)
 async def test_channel_endpoint(channel_id: str, db: AsyncSession = Depends(get_db)):
     return await test_channel(db, channel_id)
+
+
+@router.post("/channels/{channel_id}/test-level", response_model=AlertTestResult)
+async def test_level_endpoint(
+    channel_id: str,
+    level: str = Query(..., description="WARNING, MAJOR, or CRITICAL"),
+    db: AsyncSession = Depends(get_db),
+):
+    return await test_level_alert(db, channel_id, level)

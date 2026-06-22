@@ -73,12 +73,14 @@ async def send_google_chat(webhook_url: str, text: str) -> bool:
 # ─── Message formatting ───────────────────────────────────────────────────────
 
 def format_disk_alert_message(
-    alerts_by_level: dict[str, list[tuple[DiskHealthRecord, float | None]]]
+    alerts_by_level: dict[str, list[tuple[DiskHealthRecord, float | None]]],
+    test: bool = False,
 ) -> str:
     """Format a grouped alert message for Google Chat."""
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    lines: list[str] = ["🚨 *Disk Health Alert — EliCloud Monitor*", ""]
+    header = "🧪 *[TEST] Disk Health Alert — EliCloud Monitor*" if test else "🚨 *Disk Health Alert — EliCloud Monitor*"
+    lines: list[str] = [header, ""]
 
     level_config = [
         ("CRITICAL", "🔴"),
@@ -245,7 +247,7 @@ async def check_disk_health_alerts(db: AsyncSession) -> int:
 # ─── Test channel ─────────────────────────────────────────────────────────────
 
 async def test_channel(db: AsyncSession, channel_id: str) -> AlertTestResult:
-    """Send a test message to the given channel and return the result."""
+    """Send a connectivity test message to the given channel."""
     channel = (
         await db.execute(select(AlertChannel).where(AlertChannel.id == channel_id))
     ).scalar_one_or_none()
@@ -256,4 +258,55 @@ async def test_channel(db: AsyncSession, channel_id: str) -> AlertTestResult:
     ok = await send_google_chat(channel.webhook_url, text)
     if ok:
         return AlertTestResult(success=True, message="Test message sent successfully.")
+    return AlertTestResult(success=False, message="Failed to deliver test message — check webhook URL.")
+
+
+async def test_level_alert(db: AsyncSession, channel_id: str, level: str) -> AlertTestResult:
+    """
+    Send a real-data test alert for a specific level to the given channel,
+    bypassing interval state entirely. Uses actual disk health + Ceph data.
+    """
+    level = level.upper()
+    if level not in ("WARNING", "MAJOR", "CRITICAL"):
+        return AlertTestResult(success=False, message=f"Invalid level: {level}")
+
+    channel = (
+        await db.execute(select(AlertChannel).where(AlertChannel.id == channel_id))
+    ).scalar_one_or_none()
+    if not channel:
+        return AlertTestResult(success=False, message="Channel not found")
+
+    # Build disk + Ceph data (same as check_disk_health_alerts)
+    disks = (
+        await db.execute(select(DiskHealthRecord).where(DiskHealthRecord.is_missing.is_(False)))
+    ).scalars().all()
+
+    osd_map_rows = (await db.execute(select(OsdMapping))).scalars().all()
+    osd_id_by_key: dict[str, int] = {
+        f"{om.hostname}::{om.nvme_device}": om.osd_id
+        for om in osd_map_rows if om.osd_id is not None
+    }
+    ceph_rows = (await db.execute(select(CephOsdRecord))).scalars().all()
+    util_by_osd: dict[int, float] = {r.osd_id: (r.utilization or 0.0) for r in ceph_rows}
+
+    # Filter to disks at the requested level
+    matching: list[tuple[DiskHealthRecord, float | None]] = []
+    for disk in disks:
+        key = f"{disk.hostname}::{disk.nvme_device}"
+        osd_id = osd_id_by_key.get(key)
+        ceph_util = util_by_osd.get(osd_id) if osd_id is not None else None
+        if compute_disk_effective_level(disk, ceph_util) == level:
+            matching.append((disk, ceph_util))
+
+    if not matching:
+        return AlertTestResult(
+            success=False,
+            message=f"No disks currently at {level} — nothing to send.",
+        )
+
+    alerts_by_level = {level: matching}
+    message = format_disk_alert_message(alerts_by_level, test=True)
+    ok = await send_google_chat(channel.webhook_url, message)
+    if ok:
+        return AlertTestResult(success=True, message=f"Test {level} alert sent ({len(matching)} disk(s)).")
     return AlertTestResult(success=False, message="Failed to deliver test message — check webhook URL.")

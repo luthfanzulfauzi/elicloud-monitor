@@ -979,3 +979,10 @@ export async function testAlertChannel(id: string): Promise<AlertTestResult> {
   const res = await apiClient.post<AlertTestResult>(`/alerts/channels/${id}/test`)
   return res.data
 }
+
+export async function testAlertLevel(channelId: string, level: string): Promise<AlertTestResult> {
+  const res = await apiClient.post<AlertTestResult>(`/alerts/channels/${channelId}/test-level`, null, {
+    params: { level },
+  })
+  return res.data
+}
