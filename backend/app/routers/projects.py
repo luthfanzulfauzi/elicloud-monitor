@@ -6,28 +6,13 @@ from sqlalchemy.orm import selectinload
 
 from ..database import get_db
 from ..models import Project, VM
-from ..schemas.project import ProjectOut, ProjectQuota
+from ..schemas.project import ProjectOut
 from ..deps import get_allowed_project_ids
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 TB = 1024 ** 4
 GB = 1024 ** 3
-
-
-def _parse_quota(raw: dict | None) -> ProjectQuota | None:
-    if not raw:
-        return None
-    mem_bytes = raw.get("vm.memorySize")
-    storage_bytes = raw.get("volume.capacity")
-    return ProjectQuota(
-        vm_num=raw.get("vm.num") or raw.get("vm.totalNum"),
-        vcpu_num=raw.get("vm.cpuNum"),
-        memory_gb=round(mem_bytes / GB, 1) if mem_bytes else None,
-        storage_tb=round(storage_bytes / TB, 2) if storage_bytes else None,
-        volume_num=raw.get("volume.data.num"),
-        eip_num=raw.get("eip.num"),
-    )
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -54,6 +39,5 @@ async def list_projects(
             vcpu_total=vcpu,
             vram_total_gb=mem_gb,
             storage_total_tb=round(storage_bytes / TB, 3),
-            quota=_parse_quota(p.quotas),
         ))
     return result

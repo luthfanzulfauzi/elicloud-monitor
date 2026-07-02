@@ -37,7 +37,14 @@
       "Bash(pip3 install *)",
       "Bash(python3 -c \"import uvicorn; print\\(uvicorn.__file__\\)\")",
       "Bash(npx tsc *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git *)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(docker exec elicloudmonitor-postgres-1 *)",
+      "Bash(docker exec elicloudmonitor-backend-1 *)",
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('access_token','FAIL'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'{len\\(data\\)} records'\\); r=data[0]; print\\(json.dumps\\({k:r[k] for k in ['hostname','nvme_device','is_missing','missing_since','collected_at']}, indent=2\\)\\)\")",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

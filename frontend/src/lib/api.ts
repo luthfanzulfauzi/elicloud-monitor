@@ -185,15 +185,6 @@ export interface InfraVM {
   infra_type: string
 }
 
-export interface ProjectQuota {
-  vm_num: number | null
-  vcpu_num: number | null
-  memory_gb: number | null
-  storage_tb: number | null
-  volume_num: number | null
-  eip_num: number | null
-}
-
 export interface Project {
   id: string
   name: string
@@ -202,7 +193,6 @@ export interface Project {
   vcpu_total: number
   vram_total_gb: number
   storage_total_tb: number
-  quota: ProjectQuota | null
 }
 
 export interface ResourceGroup {
@@ -438,21 +428,9 @@ export const MOCK_STORAGE: StoragePool[] = [
 ]
 
 export const MOCK_PROJECTS: Project[] = [
-  {
-    id: 'p1', name: 'project-alpha', state: 'Enabled',
-    vm_count: 18, vcpu_total: 36, vram_total_gb: 72, storage_total_tb: 3.6,
-    quota: { vm_num: 40, vcpu_num: 80, memory_gb: 160, storage_tb: 10, volume_num: 40, eip_num: 20 },
-  },
-  {
-    id: 'p2', name: 'project-beta', state: 'Enabled',
-    vm_count: 12, vcpu_total: 24, vram_total_gb: 48, storage_total_tb: 2.4,
-    quota: { vm_num: 20, vcpu_num: 40, memory_gb: 80, storage_tb: 5, volume_num: 20, eip_num: 10 },
-  },
-  {
-    id: 'p3', name: 'project-gamma', state: 'Enabled',
-    vm_count: 6, vcpu_total: 12, vram_total_gb: 24, storage_total_tb: 1.2,
-    quota: { vm_num: 20, vcpu_num: 40, memory_gb: 80, storage_tb: 5, volume_num: 20, eip_num: 10 },
-  },
+  { id: 'p1', name: 'project-alpha', state: 'Enabled', vm_count: 18, vcpu_total: 36, vram_total_gb: 72, storage_total_tb: 3.6 },
+  { id: 'p2', name: 'project-beta', state: 'Enabled', vm_count: 12, vcpu_total: 24, vram_total_gb: 48, storage_total_tb: 2.4 },
+  { id: 'p3', name: 'project-gamma', state: 'Enabled', vm_count: 6, vcpu_total: 12, vram_total_gb: 24, storage_total_tb: 1.2 },
 ]
 
 function _mockVol(name: string, type: string, size_gb: number, storage_name: string | null): VolumeInfo {

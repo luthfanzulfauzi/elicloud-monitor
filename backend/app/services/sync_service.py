@@ -80,25 +80,8 @@ async def run_sync() -> CollectionLog:
                 await db.execute(stmt)
             await db.commit()
 
-            # Fetch quotas for each project via its linkedAccountUuid
-            all_projects = (await db.execute(select(Project))).scalars().all()
-            for proj in all_projects:
-                if not proj.linked_account_uuid:
-                    continue
-                quota_map = await zs.fetch_quotas_for_account(proj.linked_account_uuid)
-                if quota_map:
-                    await db.execute(
-                        pg_insert(Project)
-                        .values(zstack_uuid=proj.zstack_uuid, name=proj.name, quotas=quota_map)
-                        .on_conflict_do_update(
-                            index_elements=["zstack_uuid"],
-                            set_=dict(quotas=quota_map, updated_at=datetime.now(timezone.utc)),
-                        )
-                    )
-            await db.commit()
-
             projects_synced = len(raw_projects)
-            log.info("Synced %d projects (with quotas)", projects_synced)
+            log.info("Synced %d projects", projects_synced)
         except Exception as exc:
             errors.append(f"projects: {exc}")
             log.error("Project sync failed: %s", exc)
