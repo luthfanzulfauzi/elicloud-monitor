@@ -50,6 +50,11 @@ query_output/
 # Collected smartctl / lsblk / ceph-osd-df data files (generated on storage nodes, not tracked)
 smartctl/*.txt
 smartctl/*.json
+smartctl/*.xlsx
+smartctl/.~lock.*
+
+# Claude Code internals
+.claude/worktrees/
 
 # Sensitive / scratch files
 ssh_keys/*
