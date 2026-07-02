@@ -7,7 +7,9 @@ export function useCurrentUser() {
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: isAuthenticated(),
-    staleTime: Infinity,
+    staleTime: 0,
+    refetchInterval: 4 * 60 * 1000,      // ping /auth/me every 4 min → keeps last_active_at fresh
+    refetchOnWindowFocus: true,           // immediately ping when user returns to tab
     retry: false,
   })
 }

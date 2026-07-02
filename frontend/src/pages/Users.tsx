@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, ShieldCheck, Globe } from 'lucide-react'
@@ -77,6 +77,12 @@ function sessionStatus(lastActiveAt: string | null): SessionStatus {
 }
 
 function LoginStatusBadge({ lastActiveAt }: { lastActiveAt: string | null }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
   const status = sessionStatus(lastActiveAt)
   const config = {
     online:  { dot: 'bg-emerald-400', text: 'text-emerald-600', label: 'Online' },
@@ -152,6 +158,8 @@ export default function Users() {
   const { data: displayUsers = [] } = useQuery({
     queryKey: ['users'],
     queryFn: fetchUsers,
+    refetchInterval: 60_000,        // refresh last_active_at for all users every 60s
+    refetchOnWindowFocus: true,
   })
 
   // ── User dialog ──
